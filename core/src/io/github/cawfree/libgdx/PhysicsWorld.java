@@ -10,13 +10,11 @@ import com.badlogic.gdx.graphics.g3d.Environment;
 import com.badlogic.gdx.graphics.g3d.Material;
 import com.badlogic.gdx.graphics.g3d.Model;
 import com.badlogic.gdx.graphics.g3d.ModelBatch;
-import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight;
 import com.badlogic.gdx.graphics.g3d.utils.CameraInputController;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.MathUtils;
-import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.physics.bullet.Bullet;
 import com.badlogic.gdx.physics.bullet.collision.Collision;
@@ -27,7 +25,6 @@ import com.badlogic.gdx.physics.bullet.collision.btCapsuleShape;
 import com.badlogic.gdx.physics.bullet.collision.btCollisionConfiguration;
 import com.badlogic.gdx.physics.bullet.collision.btCollisionDispatcher;
 import com.badlogic.gdx.physics.bullet.collision.btCollisionObject;
-import com.badlogic.gdx.physics.bullet.collision.btCollisionShape;
 import com.badlogic.gdx.physics.bullet.collision.btConeShape;
 import com.badlogic.gdx.physics.bullet.collision.btCylinderShape;
 import com.badlogic.gdx.physics.bullet.collision.btDbvtBroadphase;
@@ -37,12 +34,12 @@ import com.badlogic.gdx.physics.bullet.collision.btSphereShape;
 import com.badlogic.gdx.physics.bullet.dynamics.btConstraintSolver;
 import com.badlogic.gdx.physics.bullet.dynamics.btDiscreteDynamicsWorld;
 import com.badlogic.gdx.physics.bullet.dynamics.btDynamicsWorld;
-import com.badlogic.gdx.physics.bullet.dynamics.btRigidBody;
 import com.badlogic.gdx.physics.bullet.dynamics.btSequentialImpulseConstraintSolver;
-import com.badlogic.gdx.physics.bullet.linearmath.btMotionState;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ArrayMap;
-import com.badlogic.gdx.utils.Disposable;
+
+import io.github.cawfree.libgdx.entity.EntityConstructor;
+import io.github.cawfree.libgdx.entity.PhysicsEntity;
 
 /**
  * @url https://xoppa.github.io/blog/using-the-libgdx-3d-physics-bullet-wrapper-part2/
@@ -64,77 +61,15 @@ public final class PhysicsWorld implements ApplicationListener {
     private static final String KEY_OBJECT_CYLINDER = "cylinder";
     private static final String KEY_OBJECT_CAPSULE  = "capsule";
 
-    static class MyMotionState extends btMotionState {
-        Matrix4 transform;
-
-        @Override
-        public void getWorldTransform (Matrix4 worldTrans) {
-            worldTrans.set(transform);
-        }
-
-        @Override
-        public void setWorldTransform (Matrix4 worldTrans) {
-            transform.set(worldTrans);
-        }
-    }
-
-    static class GameObject extends ModelInstance implements Disposable {
-        public final btRigidBody body;
-        public final MyMotionState motionState;
-
-        public GameObject (Model model, String node, btRigidBody.btRigidBodyConstructionInfo constructionInfo) {
-            super(model, node);
-            motionState = new MyMotionState();
-            motionState.transform = transform;
-            body = new btRigidBody(constructionInfo);
-            body.setMotionState(motionState);
-        }
-
-        @Override
-        public void dispose () {
-            body.dispose();
-            motionState.dispose();
-        }
-
-        static class Constructor implements Disposable {
-            public final Model model;
-            public final String node;
-            public final btCollisionShape shape;
-            public final btRigidBody.btRigidBodyConstructionInfo constructionInfo;
-            private static Vector3 localInertia = new Vector3();
-
-            public Constructor (Model model, String node, btCollisionShape shape, float mass) {
-                this.model = model;
-                this.node = node;
-                this.shape = shape;
-                if (mass > 0f)
-                    shape.calculateLocalInertia(mass, localInertia);
-                else
-                    localInertia.set(0, 0, 0);
-                this.constructionInfo = new btRigidBody.btRigidBodyConstructionInfo(mass, null, shape, localInertia);
-            }
-
-            public GameObject construct () {
-                return new GameObject(model, node, constructionInfo);
-            }
-
-            @Override
-            public void dispose () {
-                shape.dispose();
-                constructionInfo.dispose();
-            }
-        }
-    }
-
     /* Member Variables. */
-    private PerspectiveCamera                        mPerspectiveCamera;
-    private CameraInputController                    mCameraController;
-    private ModelBatch                               mModelBatch;
-    private Environment                              mEnvironment;
-    private Model                                    mModel;
-    private Array<GameObject>                        mInstances;
-    private ArrayMap<String, GameObject.Constructor> mConstructors;
-    private float                                    mSpawnTimer;
+    private PerspectiveCamera             mPerspectiveCamera;
+    private CameraInputController         mCameraController;
+    private ModelBatch                    mModelBatch;
+    private Environment                   mEnvironment;
+    private Model                         mModel;
+    private Array<PhysicsEntity>          mInstances;
+    private ArrayMap<String, EntityConstructor> mConstructors;
+    private float                         mSpawnTimer;
 
     /* Bullet Physics Dependencies. */
     private btCollisionConfiguration mCollisionConfig;
@@ -153,12 +88,6 @@ public final class PhysicsWorld implements ApplicationListener {
         // Initialize the Environment.
         this.getEnvironment().set(new ColorAttribute(ColorAttribute.AmbientLight, 0.4f, 0.4f, 0.4f, 1f));
         this.getEnvironment().add(new DirectionalLight().set(0.8f, 0.8f, 0.8f, -1f, -0.8f, -0.2f));
-        // Allocate a PerspectiveCamera.
-        this.mPerspectiveCamera = this.getPerspectiveCamera(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-        // Allocate the CameraController.
-        this.mCameraController = new CameraInputController(this.getPerspectiveCamera());
-        // Register the Input Processor.
-        Gdx.input.setInputProcessor(this.getCameraController());
 
         // Declare the ModelBuilder.
         final ModelBuilder lModelBuilder = new ModelBuilder();
@@ -179,15 +108,15 @@ public final class PhysicsWorld implements ApplicationListener {
         // Build the Model. (This is a complete physical representation of the objects in our scene.)
         this.mModel        = lModelBuilder.end();
         // Allocate the Constructors.
-        this.mConstructors = new ArrayMap<String, GameObject.Constructor>(String.class, GameObject.Constructor.class);
+        this.mConstructors = new ArrayMap<String, EntityConstructor>(String.class, EntityConstructor.class);
 
-        // Initialize Constructor Mapping.
-        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_GROUND,   new GameObject.Constructor(this.getModel(), PhysicsWorld.KEY_OBJECT_GROUND,   new btBoxShape(new Vector3(2.5f, 0.5f, 2.5f)), 0f));
-        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SPHERE,   new GameObject.Constructor(this.getModel(), PhysicsWorld.KEY_OBJECT_SPHERE,   new btSphereShape(0.5f), 1f));
-        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_BOX,      new GameObject.Constructor(this.getModel(), PhysicsWorld.KEY_OBJECT_BOX,      new btBoxShape(new Vector3(0.5f, 0.5f, 0.5f)), 1f));
-        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CONE,     new GameObject.Constructor(this.getModel(), PhysicsWorld.KEY_OBJECT_CONE,     new btConeShape(0.5f, 2f), 1f));
-        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CAPSULE,  new GameObject.Constructor(this.getModel(), PhysicsWorld.KEY_OBJECT_CAPSULE,  new btCapsuleShape(.5f, 1f), 1f));
-        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CYLINDER, new GameObject.Constructor(this.getModel(), PhysicsWorld.KEY_OBJECT_CYLINDER, new btCylinderShape(new Vector3(.5f, 1f, .5f)),  1f));
+        // Initialize EntityConstructor Mapping.
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_GROUND,   new EntityConstructor(PhysicsWorld.KEY_OBJECT_GROUND,   new btBoxShape(new Vector3(2.5f, 0.5f, 2.5f)), 0f));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SPHERE,   new EntityConstructor(PhysicsWorld.KEY_OBJECT_SPHERE,   new btSphereShape(0.5f), 1f));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_BOX,      new EntityConstructor(PhysicsWorld.KEY_OBJECT_BOX,      new btBoxShape(new Vector3(0.5f, 0.5f, 0.5f)), 1f));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CONE,     new EntityConstructor(PhysicsWorld.KEY_OBJECT_CONE,     new btConeShape(0.5f, 2f), 1f));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CAPSULE,  new EntityConstructor(PhysicsWorld.KEY_OBJECT_CAPSULE,  new btCapsuleShape(.5f, 1f), 1f));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CYLINDER, new EntityConstructor(PhysicsWorld.KEY_OBJECT_CYLINDER, new btCylinderShape(new Vector3(.5f, 1f, .5f)),  1f));
 
         // Allocate the CollisionConfig; defines how to handle collisions within the scene.
         this.mCollisionConfig = new btDefaultCollisionConfiguration();
@@ -208,19 +137,19 @@ public final class PhysicsWorld implements ApplicationListener {
         } };
 
         // Allocate the Instances that will populate the 3D world.
-        this.mInstances = new Array<GameObject>();
+        this.mInstances = new Array<PhysicsEntity>();
         // Allocate the Floor.
-        final GameObject lFloorObject = this.getConstructors().get(PhysicsWorld.KEY_OBJECT_GROUND).construct();
+        final PhysicsEntity lFloorObject = this.getConstructors().get(PhysicsWorld.KEY_OBJECT_GROUND).construct(this.getModel());
         // Define the Collision Flags.
-        lFloorObject.body.setCollisionFlags(lFloorObject.body.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_KINEMATIC_OBJECT);
+        lFloorObject.mBody.setCollisionFlags(lFloorObject.mBody.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_KINEMATIC_OBJECT);
         // Register the Floor as a 3D physics instance.
         this.getInstances().add(lFloorObject);
-        // Register the Floor as a rigid body; it's a persistent entity.
-        this.getDynamicsWorld().addRigidBody(lFloorObject.body);
+        // Register the Floor as a rigid mBody; it's a persistent entity.
+        this.getDynamicsWorld().addRigidBody(lFloorObject.mBody);
         // Configure the Floor's Callbacks.
-        lFloorObject.body.setContactCallbackFlag(PhysicsWorld.GROUND_FLAG);
-        lFloorObject.body.setContactCallbackFilter(0);
-        lFloorObject.body.setActivationState(Collision.DISABLE_DEACTIVATION);
+        lFloorObject.mBody.setContactCallbackFlag(PhysicsWorld.GROUND_FLAG);
+        lFloorObject.mBody.setContactCallbackFilter(0);
+        lFloorObject.mBody.setActivationState(Collision.DISABLE_DEACTIVATION);
     }
 
     /** Called when Contact has been detected. */
@@ -240,24 +169,24 @@ public final class PhysicsWorld implements ApplicationListener {
     }
 
     /** Spawns a random shape within the 3D scene. */
-    private final void spawn () {
-        // Allocate a new GameObject.
-        final GameObject lGameObject = this.getConstructors().values[1 + MathUtils.random(this.getConstructors().size - 2)].construct();
+    private final void spawn (final Model pModel) {
+        // Allocate a new PhysicsEntity.
+        final PhysicsEntity lPhysicsEntity = this.getConstructors().values[1 + MathUtils.random(this.getConstructors().size - 2)].construct(pModel);
         // Configure a random angle for the Object.
-        lGameObject.transform.setFromEulerAngles(MathUtils.random(360f), MathUtils.random(360f), MathUtils.random(360f));
-        lGameObject.transform.trn(MathUtils.random(-2.5f, 2.5f), 9f, MathUtils.random(-2.5f, 2.5f));
-        lGameObject.body.proceedToTransform(lGameObject.transform);
-        lGameObject.body.setUserValue(this.getInstances().size);
-        lGameObject.body.setCollisionFlags(lGameObject.body.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_CUSTOM_MATERIAL_CALLBACK);
-        this.getInstances().add(lGameObject);
-        // Add the GameObject's body as a Rigid Body.
-        this.getDynamicsWorld().addRigidBody(lGameObject.body);
+        lPhysicsEntity.transform.setFromEulerAngles(MathUtils.random(360f), MathUtils.random(360f), MathUtils.random(360f));
+        lPhysicsEntity.transform.trn(MathUtils.random(-2.5f, 2.5f), 9f, MathUtils.random(-2.5f, 2.5f));
+        lPhysicsEntity.mBody.proceedToTransform(lPhysicsEntity.transform);
+        lPhysicsEntity.mBody.setUserValue(this.getInstances().size);
+        lPhysicsEntity.mBody.setCollisionFlags(lPhysicsEntity.mBody.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_CUSTOM_MATERIAL_CALLBACK);
+        this.getInstances().add(lPhysicsEntity);
+        // Add the PhysicsEntity's mBody as a Rigid Body.
+        this.getDynamicsWorld().addRigidBody(lPhysicsEntity.mBody);
         // Configure the Callbacks.
-        lGameObject.body.setContactCallbackFlag(PhysicsWorld.OBJECT_FLAG);
-        lGameObject.body.setContactCallbackFilter(PhysicsWorld.GROUND_FLAG);
+        lPhysicsEntity.mBody.setContactCallbackFlag(PhysicsWorld.OBJECT_FLAG);
+        lPhysicsEntity.mBody.setContactCallbackFilter(PhysicsWorld.GROUND_FLAG);
     }
 
-    float angle, speed = 90f;
+//    float angle, speed = 90f;
 
     /** Creates a PerspectiveCamera for the Scene. */
     private static final PerspectiveCamera getPerspectiveCamera(final int pWidth, final int pHeight) {
@@ -281,14 +210,14 @@ public final class PhysicsWorld implements ApplicationListener {
         // Compute how much to elapse the simulation by.
         final float lStep = this.getSimulationStep();
 
-        angle = (angle + lStep * speed) % 360f;
-        this.getInstances().get(0).transform.setTranslation(0, MathUtils.sinDeg(angle) * 2.5f, 0f);
+//        angle = (angle + lStep * speed) % 360f;
+//        this.getInstances().get(0).transform.setTranslation(0, MathUtils.sinDeg(angle) * 2.5f, 0f);
 
         this.getDynamicsWorld().stepSimulation(lStep, 5, 1f / 60f);
 
         if ((mSpawnTimer -= lStep) < 0) {
-            spawn();
-            mSpawnTimer = 1.5f;
+            spawn(this.getModel());
+            mSpawnTimer = 0.5f;
         }
 
         // Update the CameraController.
@@ -298,7 +227,6 @@ public final class PhysicsWorld implements ApplicationListener {
         Gdx.gl.glClearColor(0.3f, 0.3f, 0.3f, 1.f);
         // Clear the screen in preparation for re-rendering.
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
-
         // Begin Rendering the Model Batch. (Batch drawing greatly increases the speed of rendering.)
         this.getModelBatch().begin(this.getPerspectiveCamera());
         // Render the Instances.
@@ -313,35 +241,36 @@ public final class PhysicsWorld implements ApplicationListener {
         this.setPerpectiveCamera(PhysicsWorld.getPerspectiveCamera(pWidth, pHeight));
         // Update the CameraController.
         this.setCameraController(new CameraInputController(this.getPerspectiveCamera()));
+        // Register the Input Processor.
+        Gdx.input.setInputProcessor(this.getCameraController());
     }
 
     /** Handles destruction of the 3D scene. */
     @Override public final void dispose () {
         // Iterate the Instances.
-        for(final GameObject lGameObject : this.getInstances()) {
-            // Dispose of the GameObject.
-            lGameObject.dispose();
+        for(final PhysicsEntity lPhysicsEntity : this.getInstances()) {
+            // Dispose of the PhysicsEntity.
+            lPhysicsEntity.dispose();
         }
-        // Clear the Instances.
-        this.getInstances().clear();
 
         // Iterate the Constructors.
-        for(final GameObject.Constructor lConstructor : this.getConstructors().values()) {
-            // Dispose of the Constructor.
+        for(final EntityConstructor lConstructor : this.getConstructors().values()) {
+            // Dispose of the EntityConstructor.
             lConstructor.dispose();
         }
+
         // Empty the Constructors.
+        this.getInstances().clear();
         this.getConstructors().clear();
 
+        // Dispose of dependencies.
         this.getDynamicsWorld().dispose();
         this.getConstraintSolver().dispose();
         this.getBroadphaseInterface().dispose();
         this.getDispatcher().dispose();
         this.getCollisionConfig().dispose();
         this.getConstraintSolver().dispose();
-
-        mModelBatch.dispose();
-        // Destroy the Model.
+        this.getModelBatch().dispose();
         this.getModel().dispose();
     }
 
@@ -364,7 +293,7 @@ public final class PhysicsWorld implements ApplicationListener {
         return this.mCameraController;
     }
 
-    private final ArrayMap<String, GameObject.Constructor> getConstructors() {
+    private final ArrayMap<String, EntityConstructor> getConstructors() {
         return this.mConstructors;
     }
 
@@ -384,7 +313,7 @@ public final class PhysicsWorld implements ApplicationListener {
         return this.mCollisionConfig;
     }
 
-    private final Array<GameObject> getInstances() {
+    private final Array<PhysicsEntity> getInstances() {
         return this.mInstances;
     }
 
