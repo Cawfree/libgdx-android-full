@@ -1,5 +1,7 @@
 # libgdx-android-full
-A sample libgdx project that comes initialized with all of the trimmings. The startup `Activity` showcases the impressive 3D physics example provided by [xoppa](https://github.com/xoppa).
+A sample libgdx project that comes initialized with all of the trimmings. 
+
+The startup `Activity` showcases the impressive 3D physics example provided by [xoppa](https://github.com/xoppa).
 
   ![alt text](http://i.imgur.com/iQSJI76.png "libgdx Bullet Physics Example")
 
