@@ -44,10 +44,12 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ArrayMap;
 import com.badlogic.gdx.utils.Disposable;
 
-/** @see https://xoppa.github.io/blog/using-the-libgdx-3d-physics-bullet-wrapper-part2/
- * @author Xoppa */
+/**
+ * @url https://xoppa.github.io/blog/using-the-libgdx-3d-physics-bullet-wrapper-part2/
+ * @author Xoppa
+ **/
 
-public final class PhysicsActivity implements ApplicationListener {
+public final class PhysicsWorld implements ApplicationListener {
 
     /* Static Declarations. */
     private static final short GROUND_FLAG        = (1 << 8);
@@ -61,17 +63,6 @@ public final class PhysicsActivity implements ApplicationListener {
     private static final String KEY_OBJECT_CONE     = "cone";
     private static final String KEY_OBJECT_CYLINDER = "cylinder";
     private static final String KEY_OBJECT_CAPSULE  = "capsule";
-
-    class MyContactListener extends ContactListener {
-        @Override
-        public boolean onContactAdded (int userValue0, int partId0, int index0, boolean match0, int userValue1, int partId1,  int index1, boolean match1) {
-            if (match0)
-                ((ColorAttribute) mInstances.get(userValue0).materials.get(0).get(ColorAttribute.Diffuse)).color.set(Color.WHITE);
-            if (match1)
-                ((ColorAttribute) mInstances.get(userValue1).materials.get(0).get(ColorAttribute.Diffuse)).color.set(Color.WHITE);
-            return true;
-        }
-    }
 
     static class MyMotionState extends btMotionState {
         Matrix4 transform;
@@ -148,7 +139,6 @@ public final class PhysicsActivity implements ApplicationListener {
     /* Bullet Physics Dependencies. */
     private btCollisionConfiguration mCollisionConfig;
     private btDispatcher             mDispatcher;
-    private MyContactListener        mContactListener;
     private btBroadphaseInterface    mBroadphaseInterface;
     private btDynamicsWorld          mDynamicsWorld;
     private btConstraintSolver       mConstraintsSolver;
@@ -173,18 +163,18 @@ public final class PhysicsActivity implements ApplicationListener {
         // Declare the ModelBuilder.
         final ModelBuilder lModelBuilder = new ModelBuilder();
         lModelBuilder.begin();
-        lModelBuilder.node().id = PhysicsActivity.KEY_OBJECT_GROUND;
-        lModelBuilder.part(PhysicsActivity.KEY_OBJECT_GROUND,   GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.RED))).box(5f, 1f, 5f);
-        lModelBuilder.node().id = PhysicsActivity.KEY_OBJECT_SPHERE;
-        lModelBuilder.part(PhysicsActivity.KEY_OBJECT_SPHERE,   GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.GREEN))).sphere(1f, 1f, 1f, 10, 10);
-        lModelBuilder.node().id = PhysicsActivity.KEY_OBJECT_BOX;
-        lModelBuilder.part(PhysicsActivity.KEY_OBJECT_BOX,      GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.BLUE))).box(1f, 1f, 1f);
-        lModelBuilder.node().id = PhysicsActivity.KEY_OBJECT_CONE;
-        lModelBuilder.part(PhysicsActivity.KEY_OBJECT_CONE,     GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.YELLOW))).cone(1f, 2f, 1f, 10);
-        lModelBuilder.node().id = PhysicsActivity.KEY_OBJECT_CAPSULE;
-        lModelBuilder.part(PhysicsActivity.KEY_OBJECT_CAPSULE,  GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.CYAN))).capsule(0.5f, 2f, 10);
-        lModelBuilder.node().id = PhysicsActivity.KEY_OBJECT_CYLINDER;
-        lModelBuilder.part(PhysicsActivity.KEY_OBJECT_CYLINDER, GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.MAGENTA))).cylinder(1f, 2f, 1f, 10);
+        lModelBuilder.node().id = PhysicsWorld.KEY_OBJECT_GROUND;
+        lModelBuilder.part(PhysicsWorld.KEY_OBJECT_GROUND,   GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.RED))).box(5f, 1f, 5f);
+        lModelBuilder.node().id = PhysicsWorld.KEY_OBJECT_SPHERE;
+        lModelBuilder.part(PhysicsWorld.KEY_OBJECT_SPHERE,   GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.GREEN))).sphere(1f, 1f, 1f, 10, 10);
+        lModelBuilder.node().id = PhysicsWorld.KEY_OBJECT_BOX;
+        lModelBuilder.part(PhysicsWorld.KEY_OBJECT_BOX,      GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.BLUE))).box(1f, 1f, 1f);
+        lModelBuilder.node().id = PhysicsWorld.KEY_OBJECT_CONE;
+        lModelBuilder.part(PhysicsWorld.KEY_OBJECT_CONE,     GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.YELLOW))).cone(1f, 2f, 1f, 10);
+        lModelBuilder.node().id = PhysicsWorld.KEY_OBJECT_CAPSULE;
+        lModelBuilder.part(PhysicsWorld.KEY_OBJECT_CAPSULE,  GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.CYAN))).capsule(0.5f, 2f, 10);
+        lModelBuilder.node().id = PhysicsWorld.KEY_OBJECT_CYLINDER;
+        lModelBuilder.part(PhysicsWorld.KEY_OBJECT_CYLINDER, GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.MAGENTA))).cylinder(1f, 2f, 1f, 10);
 
         // Build the Model. (This is a complete physical representation of the objects in our scene.)
         this.mModel        = lModelBuilder.end();
@@ -192,12 +182,12 @@ public final class PhysicsActivity implements ApplicationListener {
         this.mConstructors = new ArrayMap<String, GameObject.Constructor>(String.class, GameObject.Constructor.class);
 
         // Initialize Constructor Mapping.
-        this.getConstructors().put(PhysicsActivity.KEY_OBJECT_GROUND,   new GameObject.Constructor(mModel, PhysicsActivity.KEY_OBJECT_GROUND,   new btBoxShape(new Vector3(2.5f, 0.5f, 2.5f)), 0f));
-        this.getConstructors().put(PhysicsActivity.KEY_OBJECT_SPHERE,   new GameObject.Constructor(mModel, PhysicsActivity.KEY_OBJECT_SPHERE,   new btSphereShape(0.5f), 1f));
-        this.getConstructors().put(PhysicsActivity.KEY_OBJECT_BOX,      new GameObject.Constructor(mModel, PhysicsActivity.KEY_OBJECT_BOX,      new btBoxShape(new Vector3(0.5f, 0.5f, 0.5f)), 1f));
-        this.getConstructors().put(PhysicsActivity.KEY_OBJECT_CONE,     new GameObject.Constructor(mModel, PhysicsActivity.KEY_OBJECT_CONE,     new btConeShape(0.5f, 2f), 1f));
-        this.getConstructors().put(PhysicsActivity.KEY_OBJECT_CAPSULE,  new GameObject.Constructor(mModel, PhysicsActivity.KEY_OBJECT_CAPSULE,  new btCapsuleShape(.5f, 1f), 1f));
-        this.getConstructors().put(PhysicsActivity.KEY_OBJECT_CYLINDER, new GameObject.Constructor(mModel, PhysicsActivity.KEY_OBJECT_CYLINDER, new btCylinderShape(new Vector3(.5f, 1f, .5f)),  1f));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_GROUND,   new GameObject.Constructor(this.getModel(), PhysicsWorld.KEY_OBJECT_GROUND,   new btBoxShape(new Vector3(2.5f, 0.5f, 2.5f)), 0f));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SPHERE,   new GameObject.Constructor(this.getModel(), PhysicsWorld.KEY_OBJECT_SPHERE,   new btSphereShape(0.5f), 1f));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_BOX,      new GameObject.Constructor(this.getModel(), PhysicsWorld.KEY_OBJECT_BOX,      new btBoxShape(new Vector3(0.5f, 0.5f, 0.5f)), 1f));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CONE,     new GameObject.Constructor(this.getModel(), PhysicsWorld.KEY_OBJECT_CONE,     new btConeShape(0.5f, 2f), 1f));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CAPSULE,  new GameObject.Constructor(this.getModel(), PhysicsWorld.KEY_OBJECT_CAPSULE,  new btCapsuleShape(.5f, 1f), 1f));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CYLINDER, new GameObject.Constructor(this.getModel(), PhysicsWorld.KEY_OBJECT_CYLINDER, new btCylinderShape(new Vector3(.5f, 1f, .5f)),  1f));
 
         // Allocate the CollisionConfig; defines how to handle collisions within the scene.
         this.mCollisionConfig = new btDefaultCollisionConfiguration();
@@ -205,34 +195,66 @@ public final class PhysicsActivity implements ApplicationListener {
         this.mDispatcher = new btCollisionDispatcher(this.getCollisionConfig());
         // Allocate a BroadphaseInterface.
         this.mBroadphaseInterface = new btDbvtBroadphase();
-        mConstraintsSolver = new btSequentialImpulseConstraintSolver();
-        mDynamicsWorld = new btDiscreteDynamicsWorld(this.getDispatcher(), mBroadphaseInterface, mConstraintsSolver, mCollisionConfig);
-        mDynamicsWorld.setGravity(new Vector3(0, -10f, 0));
-        mContactListener = new MyContactListener();
+        // Allocate the ConstraintSolver.
+        this.mConstraintsSolver = new btSequentialImpulseConstraintSolver();
+        // Declare the DynamicsWorld based upon the declared components.
+        this.mDynamicsWorld = new btDiscreteDynamicsWorld(this.getDispatcher(), this.getBroadphaseInterface(), this.getConstraintSolver(), this.getCollisionConfig());
+        // Configure the direction of Gravity in this world.
+        this.getDynamicsWorld().setGravity(new Vector3(0, -9.81f, 0));
+        // Register this class as the ContactListener. For some reason, there's some `static` style configuration going on.
+        new ContactListener() { @Override public final boolean onContactAdded(final int pUserValue0, final int pPartId0, final int pIndex0, final boolean pIsMatch0, final int pUserValue1, final int pPartId1, final int pIndex1, final boolean pIsMatch1) {
+            // Use this class' implementation.
+            return PhysicsWorld.this.onContactAdded(pUserValue0, pPartId0, pIndex0, pIsMatch0, pUserValue1, pPartId1, pIndex1, pIsMatch1);
+        } };
 
-        mInstances = new Array<GameObject>();
-        final GameObject lGameObject = this.getConstructors().get(PhysicsActivity.KEY_OBJECT_GROUND).construct();
-        lGameObject.body.setCollisionFlags(lGameObject.body.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_KINEMATIC_OBJECT);
-        this.getInstances().add(lGameObject);
-        mDynamicsWorld.addRigidBody(lGameObject.body);
-        lGameObject.body.setContactCallbackFlag(GROUND_FLAG);
-        lGameObject.body.setContactCallbackFilter(0);
-        lGameObject.body.setActivationState(Collision.DISABLE_DEACTIVATION);
+        // Allocate the Instances that will populate the 3D world.
+        this.mInstances = new Array<GameObject>();
+        // Allocate the Floor.
+        final GameObject lFloorObject = this.getConstructors().get(PhysicsWorld.KEY_OBJECT_GROUND).construct();
+        // Define the Collision Flags.
+        lFloorObject.body.setCollisionFlags(lFloorObject.body.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_KINEMATIC_OBJECT);
+        // Register the Floor as a 3D physics instance.
+        this.getInstances().add(lFloorObject);
+        // Register the Floor as a rigid body; it's a persistent entity.
+        this.getDynamicsWorld().addRigidBody(lFloorObject.body);
+        // Configure the Floor's Callbacks.
+        lFloorObject.body.setContactCallbackFlag(PhysicsWorld.GROUND_FLAG);
+        lFloorObject.body.setContactCallbackFilter(0);
+        lFloorObject.body.setActivationState(Collision.DISABLE_DEACTIVATION);
+    }
+
+    /** Called when Contact has been detected. */
+    public final boolean onContactAdded(final int pUserValue0, final int pPartId0, final int pIndex0, final boolean pIsMatch0, final int pUserValue1, final int pPartId1, final int pIndex1, final boolean pIsMatch1) {
+        // Are we matching on 0?
+        if(pIsMatch0) {
+            // Update the Color.
+            ((ColorAttribute)this.getInstances().get(pUserValue0).materials.get(0).get(ColorAttribute.Diffuse)).color.set(Color.WHITE);
+        }
+        // Are we matching on 1?
+        if (pIsMatch1) {
+            // Update the Color.
+            ((ColorAttribute)this.getInstances().get(pUserValue1).materials.get(0).get(ColorAttribute.Diffuse)).color.set(Color.WHITE);
+        }
+        // Assert that we've handled the Contact.
+        return true;
     }
 
     /** Spawns a random shape within the 3D scene. */
     private final void spawn () {
         // Allocate a new GameObject.
         final GameObject lGameObject = this.getConstructors().values[1 + MathUtils.random(this.getConstructors().size - 2)].construct();
+        // Configure a random angle for the Object.
         lGameObject.transform.setFromEulerAngles(MathUtils.random(360f), MathUtils.random(360f), MathUtils.random(360f));
         lGameObject.transform.trn(MathUtils.random(-2.5f, 2.5f), 9f, MathUtils.random(-2.5f, 2.5f));
         lGameObject.body.proceedToTransform(lGameObject.transform);
         lGameObject.body.setUserValue(this.getInstances().size);
         lGameObject.body.setCollisionFlags(lGameObject.body.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_CUSTOM_MATERIAL_CALLBACK);
         this.getInstances().add(lGameObject);
-        mDynamicsWorld.addRigidBody(lGameObject.body);
-        lGameObject.body.setContactCallbackFlag(OBJECT_FLAG);
-        lGameObject.body.setContactCallbackFilter(GROUND_FLAG);
+        // Add the GameObject's body as a Rigid Body.
+        this.getDynamicsWorld().addRigidBody(lGameObject.body);
+        // Configure the Callbacks.
+        lGameObject.body.setContactCallbackFlag(PhysicsWorld.OBJECT_FLAG);
+        lGameObject.body.setContactCallbackFilter(PhysicsWorld.GROUND_FLAG);
     }
 
     float angle, speed = 90f;
@@ -262,7 +284,7 @@ public final class PhysicsActivity implements ApplicationListener {
         angle = (angle + lStep * speed) % 360f;
         this.getInstances().get(0).transform.setTranslation(0, MathUtils.sinDeg(angle) * 2.5f, 0f);
 
-        mDynamicsWorld.stepSimulation(lStep, 5, 1f / 60f);
+        this.getDynamicsWorld().stepSimulation(lStep, 5, 1f / 60f);
 
         if ((mSpawnTimer -= lStep) < 0) {
             spawn();
@@ -272,18 +294,23 @@ public final class PhysicsActivity implements ApplicationListener {
         // Update the CameraController.
         this.getCameraController().update();
 
+        // Assert the Background Color.
         Gdx.gl.glClearColor(0.3f, 0.3f, 0.3f, 1.f);
+        // Clear the screen in preparation for re-rendering.
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
 
-        mModelBatch.begin(this.getPerspectiveCamera());
-        mModelBatch.render(this.getInstances(), this.getEnvironment());
-        mModelBatch.end();
+        // Begin Rendering the Model Batch. (Batch drawing greatly increases the speed of rendering.)
+        this.getModelBatch().begin(this.getPerspectiveCamera());
+        // Render the Instances.
+        this.getModelBatch().render(this.getInstances(), this.getEnvironment());
+        // Assert that we've finished rendering using the ModelBatch.
+        this.getModelBatch().end();
     }
 
     /** Handle when the screen is resized. (Useful for changes in screen orientation on Android.) */
     @Override public final void resize(final int pWidth, final int pHeight) {
         // Reassign the PerspectiveCamera.
-        this.setPerpectiveCamera(PhysicsActivity.getPerspectiveCamera(pWidth, pHeight));
+        this.setPerpectiveCamera(PhysicsWorld.getPerspectiveCamera(pWidth, pHeight));
         // Update the CameraController.
         this.setCameraController(new CameraInputController(this.getPerspectiveCamera()));
     }
@@ -306,18 +333,16 @@ public final class PhysicsActivity implements ApplicationListener {
         // Empty the Constructors.
         this.getConstructors().clear();
 
-        mDynamicsWorld.dispose();
-        mConstraintsSolver.dispose();
-        mBroadphaseInterface.dispose();
-        // Dispose of the Dispatcher.
+        this.getDynamicsWorld().dispose();
+        this.getConstraintSolver().dispose();
+        this.getBroadphaseInterface().dispose();
         this.getDispatcher().dispose();
-        // Dispose of the CollisionConfig.
         this.getCollisionConfig().dispose();
-
-        mContactListener.dispose();
+        this.getConstraintSolver().dispose();
 
         mModelBatch.dispose();
-        mModel.dispose();
+        // Destroy the Model.
+        this.getModel().dispose();
     }
 
     /* Unused Overrides. */
@@ -327,7 +352,7 @@ public final class PhysicsActivity implements ApplicationListener {
     /** Computes the elapsed time in the scene; render either the animation step or the time that has elapsed to ensure smooth display. */
     private final float getSimulationStep() {
         // Return the minimum step to apply, between either the Frames Per Second or the time that's elapsed.
-        return Math.min(1.0f / PhysicsActivity.FRAMES_PER_SECOND, Gdx.graphics.getDeltaTime());
+        return Math.min(1.0f / PhysicsWorld.FRAMES_PER_SECOND, Gdx.graphics.getDeltaTime());
     }
 
     /* Getters. */
@@ -365,6 +390,26 @@ public final class PhysicsActivity implements ApplicationListener {
 
     private final btDispatcher getDispatcher() {
         return this.mDispatcher;
+    }
+
+    private final btBroadphaseInterface getBroadphaseInterface() {
+        return this.mBroadphaseInterface;
+    }
+
+    private final btConstraintSolver getConstraintSolver() {
+        return this.mConstraintsSolver;
+    }
+
+    private final btDynamicsWorld getDynamicsWorld() {
+        return this.mDynamicsWorld;
+    }
+
+    private final Model getModel() {
+        return this.mModel;
+    }
+
+    private final ModelBatch getModelBatch() {
+        return this.mModelBatch;
     }
 
 }
