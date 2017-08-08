@@ -11,8 +11,8 @@ import com.badlogic.gdx.utils.Disposable;
 public class PhysicsEntity extends ModelInstance implements Disposable {
 
     /* Member Variables. */
-    public final btRigidBody   mBody;
-    public final btMotionState mMotionState;
+    private final btRigidBody   mBody;
+    private final btMotionState mMotionState;
 
     /** EntityConstructor. */
     public PhysicsEntity(final Model pModel, final String pNode, final btRigidBody.btRigidBodyConstructionInfo pConstructionInfo) {
@@ -38,7 +38,7 @@ public class PhysicsEntity extends ModelInstance implements Disposable {
     }
 
     /* Getters. */
-    private final btRigidBody getBody() {
+    public final btRigidBody getBody() {
         return this.mBody;
     }
 

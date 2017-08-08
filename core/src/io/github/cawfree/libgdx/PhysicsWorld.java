@@ -52,6 +52,7 @@ public final class PhysicsWorld implements ApplicationListener {
     private static final short GROUND_FLAG        = (1 << 8);
     private static final short OBJECT_FLAG        = (1 << 9);
     private static final float FRAMES_PER_SECOND  = 60.0f;
+    private static final float DELAY_RESPAWN_MS   = 1.5f;
 
     /* Object Definitions. */
     private static final String KEY_OBJECT_GROUND   = "ground";
@@ -88,28 +89,32 @@ public final class PhysicsWorld implements ApplicationListener {
         // Initialize the Environment.
         this.getEnvironment().set(new ColorAttribute(ColorAttribute.AmbientLight, 0.4f, 0.4f, 0.4f, 1f));
         this.getEnvironment().add(new DirectionalLight().set(0.8f, 0.8f, 0.8f, -1f, -0.8f, -0.2f));
-
         // Declare the ModelBuilder.
         final ModelBuilder lModelBuilder = new ModelBuilder();
+        // Begin Preparing the Model.
         lModelBuilder.begin();
+        /** Ground. */
         lModelBuilder.node().id = PhysicsWorld.KEY_OBJECT_GROUND;
         lModelBuilder.part(PhysicsWorld.KEY_OBJECT_GROUND,   GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.RED))).box(5f, 1f, 5f);
+        /** Sphere. */
         lModelBuilder.node().id = PhysicsWorld.KEY_OBJECT_SPHERE;
         lModelBuilder.part(PhysicsWorld.KEY_OBJECT_SPHERE,   GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.GREEN))).sphere(1f, 1f, 1f, 10, 10);
+        /** Box. */
         lModelBuilder.node().id = PhysicsWorld.KEY_OBJECT_BOX;
         lModelBuilder.part(PhysicsWorld.KEY_OBJECT_BOX,      GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.BLUE))).box(1f, 1f, 1f);
+        /** Cone. */
         lModelBuilder.node().id = PhysicsWorld.KEY_OBJECT_CONE;
         lModelBuilder.part(PhysicsWorld.KEY_OBJECT_CONE,     GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.YELLOW))).cone(1f, 2f, 1f, 10);
+        /** Capsule. */
         lModelBuilder.node().id = PhysicsWorld.KEY_OBJECT_CAPSULE;
         lModelBuilder.part(PhysicsWorld.KEY_OBJECT_CAPSULE,  GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.CYAN))).capsule(0.5f, 2f, 10);
+        /** Cylinder. */
         lModelBuilder.node().id = PhysicsWorld.KEY_OBJECT_CYLINDER;
         lModelBuilder.part(PhysicsWorld.KEY_OBJECT_CYLINDER, GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.MAGENTA))).cylinder(1f, 2f, 1f, 10);
-
         // Build the Model. (This is a complete physical representation of the objects in our scene.)
         this.mModel        = lModelBuilder.end();
         // Allocate the Constructors.
         this.mConstructors = new ArrayMap<String, EntityConstructor>(String.class, EntityConstructor.class);
-
         // Initialize EntityConstructor Mapping.
         this.getConstructors().put(PhysicsWorld.KEY_OBJECT_GROUND,   new EntityConstructor(PhysicsWorld.KEY_OBJECT_GROUND,   new btBoxShape(new Vector3(2.5f, 0.5f, 2.5f)), 0f));
         this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SPHERE,   new EntityConstructor(PhysicsWorld.KEY_OBJECT_SPHERE,   new btSphereShape(0.5f), 1f));
@@ -117,7 +122,6 @@ public final class PhysicsWorld implements ApplicationListener {
         this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CONE,     new EntityConstructor(PhysicsWorld.KEY_OBJECT_CONE,     new btConeShape(0.5f, 2f), 1f));
         this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CAPSULE,  new EntityConstructor(PhysicsWorld.KEY_OBJECT_CAPSULE,  new btCapsuleShape(.5f, 1f), 1f));
         this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CYLINDER, new EntityConstructor(PhysicsWorld.KEY_OBJECT_CYLINDER, new btCylinderShape(new Vector3(.5f, 1f, .5f)),  1f));
-
         // Allocate the CollisionConfig; defines how to handle collisions within the scene.
         this.mCollisionConfig = new btDefaultCollisionConfiguration();
         // Allocate a CollisionDispatcher; this propagates collision events across the scene. We maintain a reference to ensure we may manually dispose of it later.
@@ -135,21 +139,20 @@ public final class PhysicsWorld implements ApplicationListener {
             // Use this class' implementation.
             return PhysicsWorld.this.onContactAdded(pUserValue0, pPartId0, pIndex0, pIsMatch0, pUserValue1, pPartId1, pIndex1, pIsMatch1);
         } };
-
         // Allocate the Instances that will populate the 3D world.
         this.mInstances = new Array<PhysicsEntity>();
         // Allocate the Floor.
         final PhysicsEntity lFloorObject = this.getConstructors().get(PhysicsWorld.KEY_OBJECT_GROUND).construct(this.getModel());
         // Define the Collision Flags.
-        lFloorObject.mBody.setCollisionFlags(lFloorObject.mBody.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_KINEMATIC_OBJECT);
+        lFloorObject.getBody().setCollisionFlags(lFloorObject.getBody().getCollisionFlags() | btCollisionObject.CollisionFlags.CF_KINEMATIC_OBJECT);
         // Register the Floor as a 3D physics instance.
         this.getInstances().add(lFloorObject);
         // Register the Floor as a rigid mBody; it's a persistent entity.
-        this.getDynamicsWorld().addRigidBody(lFloorObject.mBody);
+        this.getDynamicsWorld().addRigidBody(lFloorObject.getBody());
         // Configure the Floor's Callbacks.
-        lFloorObject.mBody.setContactCallbackFlag(PhysicsWorld.GROUND_FLAG);
-        lFloorObject.mBody.setContactCallbackFilter(0);
-        lFloorObject.mBody.setActivationState(Collision.DISABLE_DEACTIVATION);
+        lFloorObject.getBody().setContactCallbackFlag(PhysicsWorld.GROUND_FLAG);
+        lFloorObject.getBody().setContactCallbackFilter(0);
+        lFloorObject.getBody().setActivationState(Collision.DISABLE_DEACTIVATION);
     }
 
     /** Called when Contact has been detected. */
@@ -175,18 +178,17 @@ public final class PhysicsWorld implements ApplicationListener {
         // Configure a random angle for the Object.
         lPhysicsEntity.transform.setFromEulerAngles(MathUtils.random(360f), MathUtils.random(360f), MathUtils.random(360f));
         lPhysicsEntity.transform.trn(MathUtils.random(-2.5f, 2.5f), 9f, MathUtils.random(-2.5f, 2.5f));
-        lPhysicsEntity.mBody.proceedToTransform(lPhysicsEntity.transform);
-        lPhysicsEntity.mBody.setUserValue(this.getInstances().size);
-        lPhysicsEntity.mBody.setCollisionFlags(lPhysicsEntity.mBody.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_CUSTOM_MATERIAL_CALLBACK);
+        lPhysicsEntity.getBody().proceedToTransform(lPhysicsEntity.transform);
+        lPhysicsEntity.getBody().setUserValue(this.getInstances().size);
+        lPhysicsEntity.getBody().setCollisionFlags(lPhysicsEntity.getBody().getCollisionFlags() | btCollisionObject.CollisionFlags.CF_CUSTOM_MATERIAL_CALLBACK);
+        // Register the PhysicsEntity as an Instance.
         this.getInstances().add(lPhysicsEntity);
         // Add the PhysicsEntity's mBody as a Rigid Body.
-        this.getDynamicsWorld().addRigidBody(lPhysicsEntity.mBody);
-        // Configure the Callbacks.
-        lPhysicsEntity.mBody.setContactCallbackFlag(PhysicsWorld.OBJECT_FLAG);
-        lPhysicsEntity.mBody.setContactCallbackFilter(PhysicsWorld.GROUND_FLAG);
+        this.getDynamicsWorld().addRigidBody(lPhysicsEntity.getBody());
+        // Configure the Callbacks; we want to detect collisions with the Floor.
+        lPhysicsEntity.getBody().setContactCallbackFlag(PhysicsWorld.OBJECT_FLAG);
+        lPhysicsEntity.getBody().setContactCallbackFilter(PhysicsWorld.GROUND_FLAG);
     }
-
-//    float angle, speed = 90f;
 
     /** Creates a PerspectiveCamera for the Scene. */
     private static final PerspectiveCamera getPerspectiveCamera(final int pWidth, final int pHeight) {
@@ -209,20 +211,16 @@ public final class PhysicsWorld implements ApplicationListener {
     @Override public final void render () {
         // Compute how much to elapse the simulation by.
         final float lStep = this.getSimulationStep();
-
-//        angle = (angle + lStep * speed) % 360f;
-//        this.getInstances().get(0).transform.setTranslation(0, MathUtils.sinDeg(angle) * 2.5f, 0f);
-
-        this.getDynamicsWorld().stepSimulation(lStep, 5, 1f / 60f);
+        // Update the simulation.
+        this.getDynamicsWorld().stepSimulation(lStep, 5, 1f / PhysicsWorld.FRAMES_PER_SECOND);
 
         if ((mSpawnTimer -= lStep) < 0) {
             spawn(this.getModel());
-            mSpawnTimer = 0.5f;
+            mSpawnTimer = PhysicsWorld.DELAY_RESPAWN_MS;
         }
 
         // Update the CameraController.
         this.getCameraController().update();
-
         // Assert the Background Color.
         Gdx.gl.glClearColor(0.3f, 0.3f, 0.3f, 1.f);
         // Clear the screen in preparation for re-rendering.

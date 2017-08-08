@@ -10,9 +10,9 @@ import com.badlogic.gdx.utils.Disposable;
 public class EntityConstructor implements Disposable {
 
     /* Member Variables. */
-    public final String                                  mNode;
-    public final btCollisionShape                        mCollisionShape;
-    public final btRigidBody.btRigidBodyConstructionInfo mConstructionInfo;
+    private final String                                  mNode;
+    private final btCollisionShape                        mCollisionShape;
+    private final btRigidBody.btRigidBodyConstructionInfo mConstructionInfo;
 
     /** Constructor. */
     public EntityConstructor(final String pNode, final btCollisionShape pCollisionShape, final float pMass) {
