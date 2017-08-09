@@ -10,6 +10,8 @@ import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.math.collision.BoundingBox;
+import com.badlogic.gdx.physics.bullet.Bullet;
 import com.badlogic.gdx.physics.bullet.collision.btBoxShape;
 import com.badlogic.gdx.physics.bullet.collision.btCapsuleShape;
 import com.badlogic.gdx.physics.bullet.collision.btCollisionShape;
@@ -20,13 +22,37 @@ import com.badlogic.gdx.physics.bullet.dynamics.btRigidBody;
 import com.badlogic.gdx.physics.bullet.linearmath.btMotionState;
 import com.badlogic.gdx.utils.Disposable;
 
-import io.github.cawfree.libgdx.PhysicsWorld;
-
 /** Tracks the physical implementation of an Entity. */
 public class PhysicsEntity extends ModelInstance implements Disposable {
 
     /** Applies the Factory pattern for constructing PhysicsEntities. */
     public static class Builder <T extends btCollisionShape> implements Disposable {
+
+        /** Generic Model Builder. Note, that this applies physics wrapping the Object in a bounding box; this doesn't follow the contours of the mesh. */
+        public static final class Generic extends Builder<btCollisionShape> {
+            /* Member Variables. */
+            private final Model mModel;
+            /** Constructor. */
+            public Generic(final String pNode, final Model pModel, final float pMass) {
+                // Initialize the Parent.
+//                super(pNode, Bullet.obtainStaticNodeShape(pModel.nodes), pMass);
+                super(pNode, new btBoxShape(pModel.calculateBoundingBox(new BoundingBox()).getMax(new Vector3())), pMass);
+                // Initialize Member Variables.
+                this.mModel = pModel;
+            }
+            /** Define collision model construction. */
+            @Override public final Builder build(final ModelBuilder pModelBuilder) {
+                // Implement the Parent.
+                super.build(pModelBuilder);
+                // Update the ModelBuilder.
+                pModelBuilder.node(this.getNode(), this.getModel());
+                // Return the Reference.
+                return this;
+            }
+            /* Getters. */
+            private final Model getModel() { return this.mModel; }
+        }
+
         /** Cylinder Builder. */
         public static final class Cylinder extends Builder<btCylinderShape> {
             /* Member Variables. */
