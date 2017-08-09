@@ -215,7 +215,7 @@ public final class PhysicsWorld implements ApplicationListener {
         if(!this.isLoaded() && this.getAssetManager().update()) {
             // Assert that we've finished loading.
             this.setLoaded(true);
-            // Fetch the Spinner Model.
+            // Fetch the Spinner Model, and remove the transforms that were generated from the Blender model. (This ensures consistency between the physics object and the graphical instances.)
             final Model lModel = PhysicsEntity.unblend(this.getAssetManager().get(PhysicsWorld.PATH_ASSET_SPINNER, Model.class));
 
             // Declare the ModelBuilder.
