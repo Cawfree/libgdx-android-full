@@ -30,7 +30,6 @@ import com.badlogic.gdx.physics.bullet.collision.btCylinderShape;
 import com.badlogic.gdx.physics.bullet.collision.btDbvtBroadphase;
 import com.badlogic.gdx.physics.bullet.collision.btDefaultCollisionConfiguration;
 import com.badlogic.gdx.physics.bullet.collision.btDispatcher;
-import com.badlogic.gdx.physics.bullet.collision.btSphereShape;
 import com.badlogic.gdx.physics.bullet.dynamics.btConstraintSolver;
 import com.badlogic.gdx.physics.bullet.dynamics.btDiscreteDynamicsWorld;
 import com.badlogic.gdx.physics.bullet.dynamics.btDynamicsWorld;
@@ -38,7 +37,6 @@ import com.badlogic.gdx.physics.bullet.dynamics.btSequentialImpulseConstraintSol
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ArrayMap;
 
-import io.github.cawfree.libgdx.entity.EntityConstructor;
 import io.github.cawfree.libgdx.entity.PhysicsEntity;
 
 /**
@@ -55,22 +53,22 @@ public final class PhysicsWorld implements ApplicationListener {
     private static final float DELAY_RESPAWN_MS   = 1.5f;
 
     /* Object Definitions. */
-    private static final String KEY_OBJECT_GROUND   = "ground";
-    private static final String KEY_OBJECT_SPHERE   = "sphere";
-    private static final String KEY_OBJECT_BOX      = "box";
-    private static final String KEY_OBJECT_CONE     = "cone";
-    private static final String KEY_OBJECT_CYLINDER = "cylinder";
-    private static final String KEY_OBJECT_CAPSULE  = "capsule";
+    public  static final String KEY_OBJECT_GROUND   = "ground";
+    public  static final String KEY_OBJECT_SPHERE   = "sphere";
+    public  static final String KEY_OBJECT_BOX      = "box";
+    public  static final String KEY_OBJECT_CONE     = "cone";
+    public  static final String KEY_OBJECT_CYLINDER = "cylinder";
+    public  static final String KEY_OBJECT_CAPSULE  = "capsule";
 
     /* Member Variables. */
-    private PerspectiveCamera             mPerspectiveCamera;
-    private CameraInputController         mCameraController;
-    private ModelBatch                    mModelBatch;
-    private Environment                   mEnvironment;
-    private Model                         mModel;
-    private Array<PhysicsEntity>          mInstances;
-    private ArrayMap<String, EntityConstructor> mConstructors;
-    private float                         mSpawnTimer;
+    private PerspectiveCamera                       mPerspectiveCamera;
+    private CameraInputController                   mCameraController;
+    private ModelBatch                              mModelBatch;
+    private Environment                             mEnvironment;
+    private Model                                   mModel;
+    private Array<PhysicsEntity>                    mInstances;
+    private ArrayMap<String, PhysicsEntity.Builder> mConstructors;
+    private float                                   mSpawnTimer;
 
     /* Bullet Physics Dependencies. */
     private btCollisionConfiguration mCollisionConfig;
@@ -91,37 +89,24 @@ public final class PhysicsWorld implements ApplicationListener {
         this.getEnvironment().add(new DirectionalLight().set(0.8f, 0.8f, 0.8f, -1f, -0.8f, -0.2f));
         // Declare the ModelBuilder.
         final ModelBuilder lModelBuilder = new ModelBuilder();
-        // Begin Preparing the Model.
-        lModelBuilder.begin();
-        /** Ground. */
-        lModelBuilder.node().id = PhysicsWorld.KEY_OBJECT_GROUND;
-        lModelBuilder.part(PhysicsWorld.KEY_OBJECT_GROUND,   GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.RED))).box(5f, 1f, 5f);
-        /** Sphere. */
-        lModelBuilder.node().id = PhysicsWorld.KEY_OBJECT_SPHERE;
-        lModelBuilder.part(PhysicsWorld.KEY_OBJECT_SPHERE,   GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.GREEN))).sphere(1f, 1f, 1f, 10, 10);
-        /** Box. */
-        lModelBuilder.node().id = PhysicsWorld.KEY_OBJECT_BOX;
-        lModelBuilder.part(PhysicsWorld.KEY_OBJECT_BOX,      GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.BLUE))).box(1f, 1f, 1f);
-        /** Cone. */
-        lModelBuilder.node().id = PhysicsWorld.KEY_OBJECT_CONE;
-        lModelBuilder.part(PhysicsWorld.KEY_OBJECT_CONE,     GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.YELLOW))).cone(1f, 2f, 1f, 10);
-        /** Capsule. */
-        lModelBuilder.node().id = PhysicsWorld.KEY_OBJECT_CAPSULE;
-        lModelBuilder.part(PhysicsWorld.KEY_OBJECT_CAPSULE,  GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.CYAN))).capsule(0.5f, 2f, 10);
-        /** Cylinder. */
-        lModelBuilder.node().id = PhysicsWorld.KEY_OBJECT_CYLINDER;
-        lModelBuilder.part(PhysicsWorld.KEY_OBJECT_CYLINDER, GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.MAGENTA))).cylinder(1f, 2f, 1f, 10);
-        // Build the Model. (This is a complete physical representation of the objects in our scene.)
-        this.mModel        = lModelBuilder.end();
+
         // Allocate the Constructors.
-        this.mConstructors = new ArrayMap<String, EntityConstructor>(String.class, EntityConstructor.class);
-        // Initialize EntityConstructor Mapping.
-        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_GROUND,   new EntityConstructor(PhysicsWorld.KEY_OBJECT_GROUND,   new btBoxShape(new Vector3(2.5f, 0.5f, 2.5f)), 0f));
-        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SPHERE,   new EntityConstructor(PhysicsWorld.KEY_OBJECT_SPHERE,   new btSphereShape(0.5f), 1f));
-        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_BOX,      new EntityConstructor(PhysicsWorld.KEY_OBJECT_BOX,      new btBoxShape(new Vector3(0.5f, 0.5f, 0.5f)), 1f));
-        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CONE,     new EntityConstructor(PhysicsWorld.KEY_OBJECT_CONE,     new btConeShape(0.5f, 2f), 1f));
-        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CAPSULE,  new EntityConstructor(PhysicsWorld.KEY_OBJECT_CAPSULE,  new btCapsuleShape(.5f, 1f), 1f));
-        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CYLINDER, new EntityConstructor(PhysicsWorld.KEY_OBJECT_CYLINDER, new btCylinderShape(new Vector3(.5f, 1f, .5f)),  1f));
+        this.mConstructors = new ArrayMap<String, PhysicsEntity.Builder>(String.class, PhysicsEntity.Builder.class);
+
+        // Assert that we're beginning to build the Model.
+        lModelBuilder.begin();
+
+        // Initialize Builder Mapping.
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_GROUND,   (new PhysicsEntity.Builder.Cube(PhysicsWorld.KEY_OBJECT_GROUND, new Vector3(2.5f, 0.5f, 2.5f), Color.FOREST, 0.0f)).build(lModelBuilder));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SPHERE,   (new PhysicsEntity.Builder.Sphere(PhysicsWorld.KEY_OBJECT_SPHERE, 0.5f, Color.CHARTREUSE, 1.0f).build(lModelBuilder)));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_BOX,      (new PhysicsEntity.Builder.Cube(PhysicsWorld.KEY_OBJECT_BOX, new Vector3(0.5f, 0.5f, 0.5f), Color.CORAL, 1.0f)).build(lModelBuilder));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CONE,     (new PhysicsEntity.Builder.Cone(PhysicsWorld.KEY_OBJECT_CONE, 0.5f, 2.5f, Color.FIREBRICK, 1.0f).build(lModelBuilder)));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CAPSULE,  (new PhysicsEntity.Builder.Capsule(PhysicsWorld.KEY_OBJECT_CAPSULE, 0.5f, 1.0f, Color.GOLDENROD, 1.0f)).build(lModelBuilder));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CYLINDER, (new PhysicsEntity.Builder.Cylinder(PhysicsWorld.KEY_OBJECT_CYLINDER, new Vector3(0.5f, 1.0f, 0.5f), Color.SALMON, 1.0f)).build(lModelBuilder));
+
+        // Build the Model. (This is a complete physical representation of the objects in our scene.)
+        this.setModel(lModelBuilder.end());
+
         // Allocate the CollisionConfig; defines how to handle collisions within the scene.
         this.mCollisionConfig = new btDefaultCollisionConfiguration();
         // Allocate a CollisionDispatcher; this propagates collision events across the scene. We maintain a reference to ensure we may manually dispose of it later.
@@ -142,7 +127,7 @@ public final class PhysicsWorld implements ApplicationListener {
         // Allocate the Instances that will populate the 3D world.
         this.mInstances = new Array<PhysicsEntity>();
         // Allocate the Floor.
-        final PhysicsEntity lFloorObject = this.getConstructors().get(PhysicsWorld.KEY_OBJECT_GROUND).construct(this.getModel());
+        final PhysicsEntity lFloorObject = this.getConstructors().get(PhysicsWorld.KEY_OBJECT_GROUND).build(this.getModel());
         // Define the Collision Flags.
         lFloorObject.getBody().setCollisionFlags(lFloorObject.getBody().getCollisionFlags() | btCollisionObject.CollisionFlags.CF_KINEMATIC_OBJECT);
         // Register the Floor as a 3D physics instance.
@@ -174,7 +159,7 @@ public final class PhysicsWorld implements ApplicationListener {
     /** Spawns a random shape within the 3D scene. */
     private final void spawn (final Model pModel) {
         // Allocate a new PhysicsEntity.
-        final PhysicsEntity lPhysicsEntity = this.getConstructors().values[1 + MathUtils.random(this.getConstructors().size - 2)].construct(pModel);
+        final PhysicsEntity lPhysicsEntity = this.getConstructors().values[1 + MathUtils.random(this.getConstructors().size - 2)].build(pModel);
         // Configure a random angle for the Object.
         lPhysicsEntity.transform.setFromEulerAngles(MathUtils.random(360f), MathUtils.random(360f), MathUtils.random(360f));
         lPhysicsEntity.transform.trn(MathUtils.random(-2.5f, 2.5f), 9f, MathUtils.random(-2.5f, 2.5f));
@@ -252,8 +237,8 @@ public final class PhysicsWorld implements ApplicationListener {
         }
 
         // Iterate the Constructors.
-        for(final EntityConstructor lConstructor : this.getConstructors().values()) {
-            // Dispose of the EntityConstructor.
+        for(final PhysicsEntity.Builder lConstructor : this.getConstructors().values()) {
+            // Dispose of the Builder.
             lConstructor.dispose();
         }
 
@@ -291,7 +276,7 @@ public final class PhysicsWorld implements ApplicationListener {
         return this.mCameraController;
     }
 
-    private final ArrayMap<String, EntityConstructor> getConstructors() {
+    private final ArrayMap<String, PhysicsEntity.Builder> getConstructors() {
         return this.mConstructors;
     }
 
@@ -329,6 +314,10 @@ public final class PhysicsWorld implements ApplicationListener {
 
     private final btDynamicsWorld getDynamicsWorld() {
         return this.mDynamicsWorld;
+    }
+
+    private final void setModel(final Model pModel) {
+        this.mModel = pModel;
     }
 
     private final Model getModel() {
