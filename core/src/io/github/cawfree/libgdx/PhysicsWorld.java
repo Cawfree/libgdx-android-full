@@ -76,7 +76,6 @@ public final class PhysicsWorld implements ApplicationListener {
     private ArrayMap<String, PhysicsEntity.Builder> mConstructors;
     private float                                   mSpawnTimer;
     private AssetManager                            mAssetManager;
-    private ModelInstance                           mG3DBInstance;
 
     /* Bullet Physics Dependencies. */
     private btCollisionConfiguration mCollisionConfig;
@@ -210,8 +209,6 @@ public final class PhysicsWorld implements ApplicationListener {
             this.setLoaded(true);
             // Fetch the Ship Model.
             final Model lModel = this.getAssetManager().get(PhysicsWorld.PATH_ASSET_SHIP, Model.class);
-            // Fetch the G3DBInstance from the loaded Assets.
-            this.mG3DBInstance = new ModelInstance(lModel);
 
             // Declare the ModelBuilder.
             final ModelBuilder lModelBuilder = new ModelBuilder();
@@ -255,8 +252,6 @@ public final class PhysicsWorld implements ApplicationListener {
             this.getModelBatch().begin(this.getPerspectiveCamera());
             // Render the Instances.
             this.getModelBatch().render(this.getInstances(), this.getEnvironment());
-            // Render the G3DB Instance.
-            this.getModelBatch().render(this.getObjectInstance());
             // Assert that we've finished rendering using the ModelBatch.
             this.getModelBatch().end();
             // Begin rendering Sprites.
@@ -394,10 +389,6 @@ public final class PhysicsWorld implements ApplicationListener {
 
     private final SpriteBatch getSpriteBatch() {
         return this.mSpriteBatch;
-    }
-
-    private ModelInstance getObjectInstance() {
-        return this.mG3DBInstance;
     }
 
     private final void setLoaded(final boolean pIsLoaded) {
