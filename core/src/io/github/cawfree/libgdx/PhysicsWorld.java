@@ -219,12 +219,12 @@ public final class PhysicsWorld implements ApplicationListener {
             lModelBuilder.begin();
             // Initialize Builder Mapping.
             this.getConstructors().put(PhysicsWorld.KEY_OBJECT_GROUND,   (new PhysicsEntity.Builder.Cube(PhysicsWorld.KEY_OBJECT_GROUND, new Vector3(2.5f, 0.5f, 2.5f), Color.FOREST, 0.0f)).build(lModelBuilder));
-            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SPHERE,   (new PhysicsEntity.Builder.Sphere(PhysicsWorld.KEY_OBJECT_SPHERE, 0.5f, Color.CHARTREUSE, 1.0f).build(lModelBuilder)));
+            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SPHERE,   (new PhysicsEntity.Builder.Sphere(PhysicsWorld.KEY_OBJECT_SPHERE, 0.5f, 30, Color.CHARTREUSE, 1.0f).build(lModelBuilder)));
             this.getConstructors().put(PhysicsWorld.KEY_OBJECT_BOX,      (new PhysicsEntity.Builder.Cube(PhysicsWorld.KEY_OBJECT_BOX, new Vector3(0.5f, 0.5f, 0.5f), Color.CORAL, 1.0f)).build(lModelBuilder));
-            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CONE,     (new PhysicsEntity.Builder.Cone(PhysicsWorld.KEY_OBJECT_CONE, 0.5f, 2.5f, Color.FIREBRICK, 1.0f).build(lModelBuilder)));
-            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CAPSULE,  (new PhysicsEntity.Builder.Capsule(PhysicsWorld.KEY_OBJECT_CAPSULE, 0.5f, 1.0f, Color.GOLDENROD, 1.0f)).build(lModelBuilder));
-            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CYLINDER, (new PhysicsEntity.Builder.Cylinder(PhysicsWorld.KEY_OBJECT_CYLINDER, new Vector3(0.5f, 1.0f, 0.5f), Color.SALMON, 1.0f)).build(lModelBuilder));
-            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SHIP,     (new PhysicsEntity.Builder.Generic(PhysicsWorld.KEY_OBJECT_SHIP, lModel, 1.0f).build(lModelBuilder)));
+            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CONE,     (new PhysicsEntity.Builder.Cone(PhysicsWorld.KEY_OBJECT_CONE, 0.5f, 2.5f, 10, Color.FIREBRICK, 1.0f).build(lModelBuilder)));
+            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CAPSULE,  (new PhysicsEntity.Builder.Capsule(PhysicsWorld.KEY_OBJECT_CAPSULE, 0.5f, 1.0f, 10, Color.GOLDENROD, 1.0f)).build(lModelBuilder));
+            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CYLINDER, (new PhysicsEntity.Builder.Cylinder(PhysicsWorld.KEY_OBJECT_CYLINDER, new Vector3(0.5f, 1.0f, 0.5f), 10, Color.SALMON, 1.0f)).build(lModelBuilder));
+            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SHIP,     (new PhysicsEntity.Builder.Generic(PhysicsWorld.KEY_OBJECT_SHIP, lModel, true, 1.0f).build(lModelBuilder)));
 
             // Build the Model. (This is a complete physical representation of the objects in our scene.)
             this.setModel(lModelBuilder.end());
