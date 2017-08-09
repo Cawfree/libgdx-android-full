@@ -2,14 +2,16 @@ package io.github.cawfree.libgdx;
 
 import com.badlogic.gdx.ApplicationListener;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.assets.AssetManager;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.PerspectiveCamera;
-import com.badlogic.gdx.graphics.VertexAttributes.Usage;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g3d.Environment;
-import com.badlogic.gdx.graphics.g3d.Material;
 import com.badlogic.gdx.graphics.g3d.Model;
 import com.badlogic.gdx.graphics.g3d.ModelBatch;
+import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight;
 import com.badlogic.gdx.graphics.g3d.utils.CameraInputController;
@@ -19,14 +21,10 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.physics.bullet.Bullet;
 import com.badlogic.gdx.physics.bullet.collision.Collision;
 import com.badlogic.gdx.physics.bullet.collision.ContactListener;
-import com.badlogic.gdx.physics.bullet.collision.btBoxShape;
 import com.badlogic.gdx.physics.bullet.collision.btBroadphaseInterface;
-import com.badlogic.gdx.physics.bullet.collision.btCapsuleShape;
 import com.badlogic.gdx.physics.bullet.collision.btCollisionConfiguration;
 import com.badlogic.gdx.physics.bullet.collision.btCollisionDispatcher;
 import com.badlogic.gdx.physics.bullet.collision.btCollisionObject;
-import com.badlogic.gdx.physics.bullet.collision.btConeShape;
-import com.badlogic.gdx.physics.bullet.collision.btCylinderShape;
 import com.badlogic.gdx.physics.bullet.collision.btDbvtBroadphase;
 import com.badlogic.gdx.physics.bullet.collision.btDefaultCollisionConfiguration;
 import com.badlogic.gdx.physics.bullet.collision.btDispatcher;
@@ -60,15 +58,22 @@ public final class PhysicsWorld implements ApplicationListener {
     public  static final String KEY_OBJECT_CYLINDER = "cylinder";
     public  static final String KEY_OBJECT_CAPSULE  = "capsule";
 
+    /* Asset Definitions. */
+    private static final String PATH_ASSET_SHIP     = "ship/ship.g3db";
+    private static final String PATH_ASSET_LOGO     = "texture/badlogic.jpg";
+
     /* Member Variables. */
     private PerspectiveCamera                       mPerspectiveCamera;
     private CameraInputController                   mCameraController;
     private ModelBatch                              mModelBatch;
+    private SpriteBatch                             mSpriteBatch;
     private Environment                             mEnvironment;
     private Model                                   mModel;
     private Array<PhysicsEntity>                    mInstances;
     private ArrayMap<String, PhysicsEntity.Builder> mConstructors;
     private float                                   mSpawnTimer;
+    private AssetManager                            mAssetManager;
+    private ModelInstance                           mG3DBInstance;
 
     /* Bullet Physics Dependencies. */
     private btCollisionConfiguration mCollisionConfig;
@@ -77,25 +82,38 @@ public final class PhysicsWorld implements ApplicationListener {
     private btDynamicsWorld          mDynamicsWorld;
     private btConstraintSolver       mConstraintsSolver;
 
+    private Texture                  mTexture;
+
+    private boolean mLoaded;
+
+    /** Constructor. */
+    public PhysicsWorld() { }
+
     /** Called when the 3D scene first undergoes construction. */
     @Override public final void create () {
         // Assert that we want to use Bullet Physics.
         Bullet.init();
         // Initialize Member Variables.
-        this.mModelBatch  = new ModelBatch();
-        this.mEnvironment = new Environment();
+        this.mModelBatch   = new ModelBatch();
+        this.mSpriteBatch  = new SpriteBatch();
+        this.mEnvironment  = new Environment();
+        this.mAssetManager = new AssetManager();
         // Initialize the Environment.
         this.getEnvironment().set(new ColorAttribute(ColorAttribute.AmbientLight, 0.4f, 0.4f, 0.4f, 1f));
         this.getEnvironment().add(new DirectionalLight().set(0.8f, 0.8f, 0.8f, -1f, -0.8f, -0.2f));
-        // Declare the ModelBuilder.
-        final ModelBuilder lModelBuilder = new ModelBuilder();
-
+        // Assert that nothing has loaded.
+        this.mLoaded = false;
+        // Configure the AssetManager.
+        this.getAssetManager().load(PhysicsWorld.PATH_ASSET_SHIP, Model.class);
+        // Fetch the Texture.
+        this.mTexture = new Texture(PhysicsWorld.PATH_ASSET_LOGO);
         // Allocate the Constructors.
         this.mConstructors = new ArrayMap<String, PhysicsEntity.Builder>(String.class, PhysicsEntity.Builder.class);
 
+        // Declare the ModelBuilder.
+        final ModelBuilder lModelBuilder = new ModelBuilder();
         // Assert that we're beginning to build the Model.
         lModelBuilder.begin();
-
         // Initialize Builder Mapping.
         this.getConstructors().put(PhysicsWorld.KEY_OBJECT_GROUND,   (new PhysicsEntity.Builder.Cube(PhysicsWorld.KEY_OBJECT_GROUND, new Vector3(2.5f, 0.5f, 2.5f), Color.FOREST, 0.0f)).build(lModelBuilder));
         this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SPHERE,   (new PhysicsEntity.Builder.Sphere(PhysicsWorld.KEY_OBJECT_SPHERE, 0.5f, Color.CHARTREUSE, 1.0f).build(lModelBuilder)));
@@ -103,7 +121,6 @@ public final class PhysicsWorld implements ApplicationListener {
         this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CONE,     (new PhysicsEntity.Builder.Cone(PhysicsWorld.KEY_OBJECT_CONE, 0.5f, 2.5f, Color.FIREBRICK, 1.0f).build(lModelBuilder)));
         this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CAPSULE,  (new PhysicsEntity.Builder.Capsule(PhysicsWorld.KEY_OBJECT_CAPSULE, 0.5f, 1.0f, Color.GOLDENROD, 1.0f)).build(lModelBuilder));
         this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CYLINDER, (new PhysicsEntity.Builder.Cylinder(PhysicsWorld.KEY_OBJECT_CYLINDER, new Vector3(0.5f, 1.0f, 0.5f), Color.SALMON, 1.0f)).build(lModelBuilder));
-
         // Build the Model. (This is a complete physical representation of the objects in our scene.)
         this.setModel(lModelBuilder.end());
 
@@ -138,6 +155,8 @@ public final class PhysicsWorld implements ApplicationListener {
         lFloorObject.getBody().setContactCallbackFlag(PhysicsWorld.GROUND_FLAG);
         lFloorObject.getBody().setContactCallbackFilter(0);
         lFloorObject.getBody().setActivationState(Collision.DISABLE_DEACTIVATION);
+        // Update the Assets.
+        this.getAssetManager().update();
     }
 
     /** Called when Contact has been detected. */
@@ -197,8 +216,9 @@ public final class PhysicsWorld implements ApplicationListener {
         // Compute how much to elapse the simulation by.
         final float lStep = this.getSimulationStep();
         // Update the simulation.
-        this.getDynamicsWorld().stepSimulation(lStep, 5, 1f / PhysicsWorld.FRAMES_PER_SECOND);
+        this.getDynamicsWorld().stepSimulation(lStep, 5, 1.0f / PhysicsWorld.FRAMES_PER_SECOND);
 
+        //
         if ((mSpawnTimer -= lStep) < 0) {
             spawn(this.getModel());
             mSpawnTimer = PhysicsWorld.DELAY_RESPAWN_MS;
@@ -213,9 +233,29 @@ public final class PhysicsWorld implements ApplicationListener {
         // Begin Rendering the Model Batch. (Batch drawing greatly increases the speed of rendering.)
         this.getModelBatch().begin(this.getPerspectiveCamera());
         // Render the Instances.
-        this.getModelBatch().render(this.getInstances(), this.getEnvironment());
+//        this.getModelBatch().render(this.getInstances(), this.getEnvironment());
+
+        // Have we not yet loaded?
+        if(!this.isLoaded() && this.getAssetManager().update()) {
+            // Assert that we've finished loading.
+            this.setLoaded(true);
+            // Fetch the G3DBInstance from the loaded Assets.
+            this.mG3DBInstance   = new ModelInstance(this.getAssetManager().get(PhysicsWorld.PATH_ASSET_SHIP, Model.class));
+        }
+
+        // Have we finished loading?
+        if(this.isLoaded()) {
+            // Render the G3DB Instance.
+            this.getModelBatch().render(this.getObjectInstance());
+        }
+
         // Assert that we've finished rendering using the ModelBatch.
         this.getModelBatch().end();
+
+        this.getSpriteBatch().begin();
+        this.getSpriteBatch().draw(this.getTexture(), 0, 0);
+        this.getSpriteBatch().end();
+
     }
 
     /** Handle when the screen is resized. (Useful for changes in screen orientation on Android.) */
@@ -255,6 +295,9 @@ public final class PhysicsWorld implements ApplicationListener {
         this.getConstraintSolver().dispose();
         this.getModelBatch().dispose();
         this.getModel().dispose();
+        this.getAssetManager().dispose();
+        this.getTexture().dispose();
+        this.getSpriteBatch().dispose();
     }
 
     /* Unused Overrides. */
@@ -326,6 +369,30 @@ public final class PhysicsWorld implements ApplicationListener {
 
     private final ModelBatch getModelBatch() {
         return this.mModelBatch;
+    }
+
+    private final AssetManager getAssetManager() {
+        return this.mAssetManager;
+    }
+
+    private final Texture getTexture() {
+        return this.mTexture;
+    }
+
+    private final SpriteBatch getSpriteBatch() {
+        return this.mSpriteBatch;
+    }
+
+    private ModelInstance getObjectInstance() {
+        return this.mG3DBInstance;
+    }
+
+    private final void setLoaded(final boolean pIsLoaded) {
+        this.mLoaded = pIsLoaded;
+    }
+
+    private final boolean isLoaded() {
+        return this.mLoaded;
     }
 
 }

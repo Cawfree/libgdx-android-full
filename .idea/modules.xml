@@ -4,8 +4,11 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/android/android.iml" filepath="$PROJECT_DIR$/android/android.iml" />
       <module fileurl="file://$PROJECT_DIR$/android/android.iml" filepath="$PROJECT_DIR$/android/android.iml" />
+      <module fileurl="file://$PROJECT_DIR$/android/android.iml" filepath="$PROJECT_DIR$/android/android.iml" />
       <module fileurl="file://$PROJECT_DIR$/core/core.iml" filepath="$PROJECT_DIR$/core/core.iml" />
       <module fileurl="file://$PROJECT_DIR$/core/core.iml" filepath="$PROJECT_DIR$/core/core.iml" />
+      <module fileurl="file://$PROJECT_DIR$/core/core.iml" filepath="$PROJECT_DIR$/core/core.iml" />
+      <module fileurl="file://$PROJECT_DIR$/libgdx-android-full.iml" filepath="$PROJECT_DIR$/libgdx-android-full.iml" />
       <module fileurl="file://$PROJECT_DIR$/libgdx-android-full.iml" filepath="$PROJECT_DIR$/libgdx-android-full.iml" />
       <module fileurl="file://$PROJECT_DIR$/libgdx-android-full.iml" filepath="$PROJECT_DIR$/libgdx-android-full.iml" />
     </modules>

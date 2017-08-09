@@ -25,19 +25,6 @@ import io.github.cawfree.libgdx.PhysicsWorld;
 /** Tracks the physical implementation of an Entity. */
 public class PhysicsEntity extends ModelInstance implements Disposable {
 
-    /** TODO: The Key MUST be externalized. */
-
-//
-//this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CYLINDER, new PhysicsEntity.Builder(PhysicsWorld.KEY_OBJECT_CYLINDER, new btCylinderShape(new Vector3(.5f, 1f, .5f)),  1f) { @Override public final PhysicsEntity.Builder build(final ModelBuilder pModelBuilder) {
-//        // Implement the Parent.
-//        super.build(pModelBuilder);
-//        // Prepare the Builder.
-//        pModelBuilder.part(PhysicsWorld.KEY_OBJECT_CYLINDER, GL20.GL_TRIANGLES, VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal, new Material(ColorAttribute.createDiffuse(Color.MAGENTA))).cylinder(1f, 2f, 1f, 10);
-//        //Return the Reference.
-//        return this;
-//    } }
-//        .build(lModelBuilder));
-
     /** Applies the Factory pattern for constructing PhysicsEntities. */
     public static class Builder <T extends btCollisionShape> implements Disposable {
 

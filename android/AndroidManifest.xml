@@ -4,6 +4,10 @@
 
     <uses-sdk android:minSdkVersion="9" android:targetSdkVersion="25" />
 
+    <!-- TODO: Should be unused once we defer to external memory. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
     <application
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher"
