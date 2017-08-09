@@ -27,7 +27,6 @@ public class PhysicsEntity extends ModelInstance implements Disposable {
 
     /** Applies the Factory pattern for constructing PhysicsEntities. */
     public static class Builder <T extends btCollisionShape> implements Disposable {
-
         /** Cylinder Builder. */
         public static final class Cylinder extends Builder<btCylinderShape> {
             /* Member Variables. */

@@ -25,12 +25,14 @@ import com.badlogic.gdx.physics.bullet.collision.btBroadphaseInterface;
 import com.badlogic.gdx.physics.bullet.collision.btCollisionConfiguration;
 import com.badlogic.gdx.physics.bullet.collision.btCollisionDispatcher;
 import com.badlogic.gdx.physics.bullet.collision.btCollisionObject;
+import com.badlogic.gdx.physics.bullet.collision.btCollisionShape;
 import com.badlogic.gdx.physics.bullet.collision.btDbvtBroadphase;
 import com.badlogic.gdx.physics.bullet.collision.btDefaultCollisionConfiguration;
 import com.badlogic.gdx.physics.bullet.collision.btDispatcher;
 import com.badlogic.gdx.physics.bullet.dynamics.btConstraintSolver;
 import com.badlogic.gdx.physics.bullet.dynamics.btDiscreteDynamicsWorld;
 import com.badlogic.gdx.physics.bullet.dynamics.btDynamicsWorld;
+import com.badlogic.gdx.physics.bullet.dynamics.btRigidBody;
 import com.badlogic.gdx.physics.bullet.dynamics.btSequentialImpulseConstraintSolver;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ArrayMap;
@@ -57,6 +59,7 @@ public final class PhysicsWorld implements ApplicationListener {
     public  static final String KEY_OBJECT_CONE     = "cone";
     public  static final String KEY_OBJECT_CYLINDER = "cylinder";
     public  static final String KEY_OBJECT_CAPSULE  = "capsule";
+    public  static final String KEY_OBJECT_SHIP     = "ship";
 
     /* Asset Definitions. */
     private static final String PATH_ASSET_SHIP     = "ship/ship.g3db";
@@ -239,8 +242,16 @@ public final class PhysicsWorld implements ApplicationListener {
         if(!this.isLoaded() && this.getAssetManager().update()) {
             // Assert that we've finished loading.
             this.setLoaded(true);
+            // Fetch the Ship Model.
+            final Model lModel = this.getAssetManager().get(PhysicsWorld.PATH_ASSET_SHIP, Model.class);
             // Fetch the G3DBInstance from the loaded Assets.
-            this.mG3DBInstance   = new ModelInstance(this.getAssetManager().get(PhysicsWorld.PATH_ASSET_SHIP, Model.class));
+            this.mG3DBInstance = new ModelInstance(lModel);
+            // Fetch the CollisionShape.
+            final btCollisionShape lCollisionShape = Bullet.obtainStaticNodeShape(lModel.nodes);
+            // Define the PhysicsEntity.
+            final PhysicsEntity    lPhysicsEntity  = new PhysicsEntity.Builder(PhysicsWorld.KEY_OBJECT_SHIP,lCollisionShape, 1.0f).b;
+
+            final btRigidBody.btRigidBodyConstructionInfo lConstructionInfo  = new btRigidBody.btRigidBodyConstructionInfo(1.0f, null, lCollisionShape, lLocalInertia);
         }
 
         // Have we finished loading?
