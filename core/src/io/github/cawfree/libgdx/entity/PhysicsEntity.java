@@ -8,35 +8,40 @@ import com.badlogic.gdx.graphics.g3d.Material;
 import com.badlogic.gdx.graphics.g3d.Model;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
+import com.badlogic.gdx.graphics.g3d.model.Node;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
-import com.badlogic.gdx.math.collision.BoundingBox;
-import com.badlogic.gdx.physics.bullet.Bullet;
-import com.badlogic.gdx.physics.bullet.collision.CollisionJNI;
 import com.badlogic.gdx.physics.bullet.collision.btBoxShape;
 import com.badlogic.gdx.physics.bullet.collision.btCapsuleShape;
 import com.badlogic.gdx.physics.bullet.collision.btCollisionShape;
 import com.badlogic.gdx.physics.bullet.collision.btConeShape;
 import com.badlogic.gdx.physics.bullet.collision.btConvexHullShape;
 import com.badlogic.gdx.physics.bullet.collision.btCylinderShape;
-import com.badlogic.gdx.physics.bullet.collision.btPolyhedralConvexShape;
 import com.badlogic.gdx.physics.bullet.collision.btShapeHull;
 import com.badlogic.gdx.physics.bullet.collision.btSphereShape;
 import com.badlogic.gdx.physics.bullet.dynamics.btRigidBody;
 import com.badlogic.gdx.physics.bullet.linearmath.btMotionState;
 import com.badlogic.gdx.utils.Disposable;
 
-import java.nio.ByteBuffer;
-import java.nio.FloatBuffer;
-import java.util.ArrayList;
-import java.util.List;
-
 /** Tracks the physical implementation of an Entity. */
 public class PhysicsEntity extends ModelInstance implements Disposable {
 
+    /** Removes the applied global transforms to a Model produced by Blender. (This may not be valid for all files.) */
+    public static final Model unblend(final Model pModel) {
+        // Iterate the Nodes in the Model.
+        for(final Node lNode : pModel.nodes) {
+            // Reset the Transform.
+            lNode.scale.set(1f, 1f, 1f);
+            lNode.rotation.set(new Vector3(1, 0, 0), (float)(Math.PI / 2.0f));
+            lNode.translation.set(new Vector3(-.0f, -0.f, -0.0f));
+        }
+        // Return the Model.
+        return pModel;
+    }
+
     /** Creates the fastest kind of arbitrary shape from a model, by defining the smallest number of vertices that enclose the vertices. */
-    public static final btConvexHullShape createConvexHullShape (final Model pModel, final boolean pIsOptimized) {
+    public static final btConvexHullShape createConvexHullShape(final Model pModel, final boolean pIsOptimized) {
         // Fetch the Mesh.
         final Mesh              lMesh            = pModel.meshes.get(0);
         // Allocate the ConvexHullShape.
@@ -65,13 +70,13 @@ public class PhysicsEntity extends ModelInstance implements Disposable {
         /** Generic Model Builder. Note, that this applies physics wrapping the Object in a bounding box; this doesn't follow the contours of the mesh. */
         public static final class Generic extends Builder<btCollisionShape> {
             /* Member Variables. */
-            private final Model mModel;
+            private final Model   mModel;
             /** Constructor. */
             public Generic(final String pNode, final Model pModel, final boolean pIsOptimized, final float pMass) {
                 // Initialize the Parent.
-                super(pNode, createConvexHullShape(pModel, pIsOptimized), pMass);
+                super(pNode, PhysicsEntity.createConvexHullShape(pModel, pIsOptimized), pMass); /** TODO: Update Scale/Offset. */
                 // Initialize Member Variables.
-                this.mModel = pModel;
+                this.mModel  = pModel;
             }
             /** Define collision model construction. */
             @Override public final Builder build(final ModelBuilder pModelBuilder) {
@@ -83,7 +88,7 @@ public class PhysicsEntity extends ModelInstance implements Disposable {
                 return this;
             }
             /* Getters. */
-            private final Model getModel() { return this.mModel; }
+            private final Model    getModel() { return this.mModel;  }
         }
 
         /** Cylinder Builder. */
