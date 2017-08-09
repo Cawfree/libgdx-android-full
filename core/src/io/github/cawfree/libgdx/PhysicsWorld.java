@@ -11,7 +11,6 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g3d.Environment;
 import com.badlogic.gdx.graphics.g3d.Model;
 import com.badlogic.gdx.graphics.g3d.ModelBatch;
-import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight;
 import com.badlogic.gdx.graphics.g3d.utils.CameraInputController;
@@ -19,21 +18,21 @@ import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.physics.bullet.Bullet;
+import com.badlogic.gdx.physics.bullet.DebugDrawer;
 import com.badlogic.gdx.physics.bullet.collision.Collision;
 import com.badlogic.gdx.physics.bullet.collision.ContactListener;
 import com.badlogic.gdx.physics.bullet.collision.btBroadphaseInterface;
 import com.badlogic.gdx.physics.bullet.collision.btCollisionConfiguration;
 import com.badlogic.gdx.physics.bullet.collision.btCollisionDispatcher;
 import com.badlogic.gdx.physics.bullet.collision.btCollisionObject;
-import com.badlogic.gdx.physics.bullet.collision.btCollisionShape;
 import com.badlogic.gdx.physics.bullet.collision.btDbvtBroadphase;
 import com.badlogic.gdx.physics.bullet.collision.btDefaultCollisionConfiguration;
 import com.badlogic.gdx.physics.bullet.collision.btDispatcher;
 import com.badlogic.gdx.physics.bullet.dynamics.btConstraintSolver;
 import com.badlogic.gdx.physics.bullet.dynamics.btDiscreteDynamicsWorld;
 import com.badlogic.gdx.physics.bullet.dynamics.btDynamicsWorld;
-import com.badlogic.gdx.physics.bullet.dynamics.btRigidBody;
 import com.badlogic.gdx.physics.bullet.dynamics.btSequentialImpulseConstraintSolver;
+import com.badlogic.gdx.physics.bullet.linearmath.btIDebugDraw;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ArrayMap;
 
@@ -60,9 +59,11 @@ public final class PhysicsWorld implements ApplicationListener {
     public  static final String KEY_OBJECT_CYLINDER = "cylinder";
     public  static final String KEY_OBJECT_CAPSULE  = "capsule";
     public  static final String KEY_OBJECT_SHIP     = "ship";
+    public  static final String KEY_OBJECT_SPINNER  = "spinner";
 
     /* Asset Definitions. */
     private static final String PATH_ASSET_SHIP     = "ship/ship.g3db";
+    private static final String PATH_ASSET_SPINNER  = "fidget/fidget_spinner.g3db";
     private static final String PATH_ASSET_LOGO     = "texture/badlogic.jpg";
 
     /* Member Variables. */
@@ -76,6 +77,7 @@ public final class PhysicsWorld implements ApplicationListener {
     private ArrayMap<String, PhysicsEntity.Builder> mConstructors;
     private float                                   mSpawnTimer;
     private AssetManager                            mAssetManager;
+    private DebugDrawer                             mDebugDrawer;
 
     /* Bullet Physics Dependencies. */
     private btCollisionConfiguration mCollisionConfig;
@@ -104,11 +106,15 @@ public final class PhysicsWorld implements ApplicationListener {
         this.mAssetManager = new AssetManager();
         this.mInstances    = new Array<PhysicsEntity>();
         this.mConstructors = new ArrayMap<String, PhysicsEntity.Builder>(String.class, PhysicsEntity.Builder.class);
+        this.mDebugDrawer  = new DebugDrawer();
+        // Configure the DebugDrawer.
+        this.getDebugDrawer().setDebugMode(btIDebugDraw.DebugDrawModes.DBG_MAX_DEBUG_DRAW_MODE);
         // Initialize the Environment.
         this.getEnvironment().set(new ColorAttribute(ColorAttribute.AmbientLight, 0.4f, 0.4f, 0.4f, 1f));
         this.getEnvironment().add(new DirectionalLight().set(0.8f, 0.8f, 0.8f, -1f, -0.8f, -0.2f));
         // Configure the AssetManager.
-        this.getAssetManager().load(PhysicsWorld.PATH_ASSET_SHIP, Model.class);
+        this.getAssetManager().load(PhysicsWorld.PATH_ASSET_SHIP,    Model.class);
+        this.getAssetManager().load(PhysicsWorld.PATH_ASSET_SPINNER, Model.class);
         // Fetch the Texture.
         this.mTexture         = new Texture(PhysicsWorld.PATH_ASSET_LOGO);
         // Allocate the CollisionConfig; defines how to handle collisions within the scene.
@@ -123,6 +129,7 @@ public final class PhysicsWorld implements ApplicationListener {
         this.mDynamicsWorld = new btDiscreteDynamicsWorld(this.getDispatcher(), this.getBroadphaseInterface(), this.getConstraintSolver(), this.getCollisionConfig());
         // Configure the direction of Gravity in this world.
         this.getDynamicsWorld().setGravity(new Vector3(0, -9.81f, 0));
+        this.getDynamicsWorld().setGravity(new Vector3(0, 0.0f, 0));
         // Register this class as the ContactListener. For some reason, there's some `static` style configuration going on.
         new ContactListener() { @Override public final boolean onContactAdded(final int pUserValue0, final int pPartId0, final int pIndex0, final boolean pIsMatch0, final int pUserValue1, final int pPartId1, final int pIndex1, final boolean pIsMatch1) {
             // Use this class' implementation.
@@ -149,16 +156,13 @@ public final class PhysicsWorld implements ApplicationListener {
     }
 
     /** Spawns a random shape within the 3D scene. */
-    private final void spawn (final Model pModel) {
+    private final void onSpawn(final Model pModel) {
         // Determine the index of the random item to generate. (Offset by 1 so we don't duplicate the floor.)
-        final int lIndex = 1 + MathUtils.random(this.getConstructors().size - 2);
+        final int lIndex = (1 + MathUtils.random(this.getConstructors().size - 2));
         // Allocate a new PhysicsEntity.
         final PhysicsEntity lPhysicsEntity = this.getConstructors().values[lIndex].build(pModel);
-//        // Ensure we don't rotate the ship.
-//        if(lIndex != this.getConstructors().size - 1) {
-            // Rotate the entity.
-            lPhysicsEntity.transform.setFromEulerAngles(MathUtils.random(360f), MathUtils.random(360f), MathUtils.random(360f));
-//        }
+        // Rotate the entity.
+        lPhysicsEntity.transform.setFromEulerAngles(MathUtils.random(360f), MathUtils.random(360f), MathUtils.random(360f));
         // Configure a random angle for the Object.
         lPhysicsEntity.transform.trn(MathUtils.random(-2.5f, 2.5f), 9f, MathUtils.random(-2.5f, 2.5f));
         lPhysicsEntity.getBody().proceedToTransform(lPhysicsEntity.transform);
@@ -207,8 +211,6 @@ public final class PhysicsWorld implements ApplicationListener {
         if(!this.isLoaded() && this.getAssetManager().update()) {
             // Assert that we've finished loading.
             this.setLoaded(true);
-            // Fetch the Ship Model.
-            final Model lModel = this.getAssetManager().get(PhysicsWorld.PATH_ASSET_SHIP, Model.class);
 
             // Declare the ModelBuilder.
             final ModelBuilder lModelBuilder = new ModelBuilder();
@@ -216,12 +218,13 @@ public final class PhysicsWorld implements ApplicationListener {
             lModelBuilder.begin();
             // Initialize Builder Mapping.
             this.getConstructors().put(PhysicsWorld.KEY_OBJECT_GROUND,   (new PhysicsEntity.Builder.Cube(PhysicsWorld.KEY_OBJECT_GROUND, new Vector3(2.5f, 0.5f, 2.5f), Color.FOREST, 0.0f)).build(lModelBuilder));
-            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SPHERE,   (new PhysicsEntity.Builder.Sphere(PhysicsWorld.KEY_OBJECT_SPHERE, 0.5f, 30, Color.CHARTREUSE, 1.0f).build(lModelBuilder)));
-            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_BOX,      (new PhysicsEntity.Builder.Cube(PhysicsWorld.KEY_OBJECT_BOX, new Vector3(0.5f, 0.5f, 0.5f), Color.CORAL, 1.0f)).build(lModelBuilder));
-            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CONE,     (new PhysicsEntity.Builder.Cone(PhysicsWorld.KEY_OBJECT_CONE, 0.5f, 2.5f, 10, Color.FIREBRICK, 1.0f).build(lModelBuilder)));
-            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CAPSULE,  (new PhysicsEntity.Builder.Capsule(PhysicsWorld.KEY_OBJECT_CAPSULE, 0.5f, 1.0f, 10, Color.GOLDENROD, 1.0f)).build(lModelBuilder));
-            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CYLINDER, (new PhysicsEntity.Builder.Cylinder(PhysicsWorld.KEY_OBJECT_CYLINDER, new Vector3(0.5f, 1.0f, 0.5f), 10, Color.SALMON, 1.0f)).build(lModelBuilder));
-            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SHIP,     (new PhysicsEntity.Builder.Generic(PhysicsWorld.KEY_OBJECT_SHIP, lModel, true, 1.0f).build(lModelBuilder)));
+//            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SPHERE,   (new PhysicsEntity.Builder.Sphere(PhysicsWorld.KEY_OBJECT_SPHERE, 0.5f, 30, Color.CHARTREUSE, 1.0f).build(lModelBuilder)));
+//            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_BOX,      (new PhysicsEntity.Builder.Cube(PhysicsWorld.KEY_OBJECT_BOX, new Vector3(0.5f, 0.5f, 0.5f), Color.CORAL, 1.0f)).build(lModelBuilder));
+//            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CONE,     (new PhysicsEntity.Builder.Cone(PhysicsWorld.KEY_OBJECT_CONE, 0.5f, 2.5f, 10, Color.FIREBRICK, 1.0f).build(lModelBuilder)));
+//            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CAPSULE,  (new PhysicsEntity.Builder.Capsule(PhysicsWorld.KEY_OBJECT_CAPSULE, 0.5f, 1.0f, 10, Color.GOLDENROD, 1.0f)).build(lModelBuilder));
+//            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CYLINDER, (new PhysicsEntity.Builder.Cylinder(PhysicsWorld.KEY_OBJECT_CYLINDER, new Vector3(0.5f, 1.0f, 0.5f), 10, Color.SALMON, 1.0f)).build(lModelBuilder));
+//            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SHIP,     (new PhysicsEntity.Builder.Generic(PhysicsWorld.KEY_OBJECT_SHIP, this.getAssetManager().get(PhysicsWorld.PATH_ASSET_SHIP, Model.class), true, 1.0f).build(lModelBuilder)));
+            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SPINNER,  (new PhysicsEntity.Builder.Generic(PhysicsWorld.KEY_OBJECT_SPINNER, this.getAssetManager().get(PhysicsWorld.PATH_ASSET_SPINNER, Model.class), true, 1.0f).build(lModelBuilder)));
 
             // Build the Model. (This is a complete physical representation of the objects in our scene.)
             this.setModel(lModelBuilder.end());
@@ -233,6 +236,8 @@ public final class PhysicsWorld implements ApplicationListener {
             this.getInstances().add(lFloorObject);
             // Register the Floor as a rigid mBody; it's a persistent entity.
             this.getDynamicsWorld().addRigidBody(lFloorObject.getBody());
+            // Assign the DynamicsWorld the DebugDrawer.
+            this.getDynamicsWorld().setDebugDrawer(this.getDebugDrawer());
             // Configure the Floor's Callbacks.
             lFloorObject.getBody().setContactCallbackFlag(PhysicsWorld.GROUND_FLAG);
             lFloorObject.getBody().setContactCallbackFilter(0);
@@ -243,9 +248,10 @@ public final class PhysicsWorld implements ApplicationListener {
         if(this.isLoaded()) {
 
             //
-            if ((mSpawnTimer -= lStep) < 0) {
-                spawn(this.getModel());
+            if ((mSpawnTimer -= lStep) < 0 && !done) {
+                this.onSpawn(this.getModel());
                 mSpawnTimer = PhysicsWorld.DELAY_RESPAWN_MS;
+                done = true;
             }
 
             // Begin Rendering the Model Batch. (Batch drawing greatly increases the speed of rendering.)
@@ -254,6 +260,14 @@ public final class PhysicsWorld implements ApplicationListener {
             this.getModelBatch().render(this.getInstances(), this.getEnvironment());
             // Assert that we've finished rendering using the ModelBatch.
             this.getModelBatch().end();
+
+            // Prepare Debug Drawing.
+            this.getDebugDrawer().begin(this.getPerspectiveCamera());
+            // Render the Debugging Information.
+            this.getDynamicsWorld().debugDrawWorld();
+            // Finish Debug Drawing.
+            this.getDebugDrawer().end();
+
             // Begin rendering Sprites.
             this.getSpriteBatch().begin();
             // Draw the Texture.
@@ -261,10 +275,8 @@ public final class PhysicsWorld implements ApplicationListener {
             // Finish ending Sprites.
             this.getSpriteBatch().end();
         }
-
-
-
     }
+    boolean done = false;
 
     /** Handle when the screen is resized. (Useful for changes in screen orientation on Android.) */
     @Override public final void resize(final int pWidth, final int pHeight) {
@@ -397,6 +409,10 @@ public final class PhysicsWorld implements ApplicationListener {
 
     private final boolean isLoaded() {
         return this.mLoaded;
+    }
+
+    private final DebugDrawer getDebugDrawer() {
+        return this.mDebugDrawer;
     }
 
 }
