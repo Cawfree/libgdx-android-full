@@ -311,10 +311,9 @@ public final class PhysicsWorld implements ApplicationListener {
         this.getCollisionConfig().dispose();
         this.getConstraintSolver().dispose();
         this.getModelBatch().dispose();
-        this.getModel().dispose();
-        this.getAssetManager().dispose();
         this.getTexture().dispose();
         this.getSpriteBatch().dispose();
+        this.getAssetManager().dispose();
     }
 
     /* Unused Overrides. */
