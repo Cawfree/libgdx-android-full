@@ -93,8 +93,6 @@ public final class PhysicsWorld implements ApplicationListener {
 
     private Texture                  mTexture;
 
-    private boolean mLoaded;
-
     /** Constructor. */
     public PhysicsWorld() { }
 
@@ -102,8 +100,6 @@ public final class PhysicsWorld implements ApplicationListener {
     @Override public final void create () {
         // Assert that we want to use Bullet Physics.
         Bullet.init();
-        // Assert that nothing has loaded.
-        this.mLoaded = false;
         // Initialize Member Variables.
         this.mModelBatch   = new ModelBatch();
         this.mSpriteBatch  = new SpriteBatch();
@@ -142,6 +138,40 @@ public final class PhysicsWorld implements ApplicationListener {
         } };
         // Update the Assets.
         this.getAssetManager().update();
+        // Wait until all Assets have loaded.
+        this.getAssetManager().finishLoading();
+
+        // Fetch the Spinner Model, and remove the transforms that were generated from the Blender model. (This ensures consistency between the physics object and the graphical instances.)
+        final Model lModel = PhysicsEntity.unblend(this.getAssetManager().get(PhysicsWorld.PATH_ASSET_SPINNER, Model.class));
+        // Declare the ModelBuilder.
+        final ModelBuilder lModelBuilder = new ModelBuilder();
+        // Assert that we're beginning to build the Model.
+        lModelBuilder.begin();
+        // Initialize Builder Mapping.
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_GROUND,   (new PhysicsEntity.Builder.Cube(PhysicsWorld.KEY_OBJECT_GROUND, new Vector3(2.5f, 0.5f, 2.5f), Color.FOREST, 0.0f)).build(lModelBuilder));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SPHERE,   (new PhysicsEntity.Builder.Sphere(PhysicsWorld.KEY_OBJECT_SPHERE, 0.5f, 30, Color.CHARTREUSE, 1.0f).build(lModelBuilder)));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_BOX,      (new PhysicsEntity.Builder.Cube(PhysicsWorld.KEY_OBJECT_BOX, new Vector3(0.5f, 0.5f, 0.5f), Color.CORAL, 1.0f)).build(lModelBuilder));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CONE,     (new PhysicsEntity.Builder.Cone(PhysicsWorld.KEY_OBJECT_CONE, 0.5f, 2.5f, 10, Color.FIREBRICK, 1.0f).build(lModelBuilder)));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CAPSULE,  (new PhysicsEntity.Builder.Capsule(PhysicsWorld.KEY_OBJECT_CAPSULE, 0.5f, 1.0f, 10, Color.GOLDENROD, 1.0f)).build(lModelBuilder));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CYLINDER, (new PhysicsEntity.Builder.Cylinder(PhysicsWorld.KEY_OBJECT_CYLINDER, new Vector3(0.5f, 1.0f, 0.5f), 10, Color.SALMON, 1.0f)).build(lModelBuilder));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SHIP,     (new PhysicsEntity.Builder.Generic(PhysicsWorld.KEY_OBJECT_SHIP, this.getAssetManager().get(PhysicsWorld.PATH_ASSET_SHIP, Model.class), true, 1.0f).build(lModelBuilder)));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SPINNER,  (new PhysicsEntity.Builder.Generic(PhysicsWorld.KEY_OBJECT_SPINNER, lModel, true, 1.0f).build(lModelBuilder)));
+        // Build the Model. (This is a complete physical representation of the objects in our scene.)
+        this.setModel(lModelBuilder.end());
+        // Allocate the Floor.
+        final PhysicsEntity lFloorObject = this.getConstructors().get(PhysicsWorld.KEY_OBJECT_GROUND).build(this.getModel());
+        // Define the Collision Flags.
+        lFloorObject.getBody().setCollisionFlags(lFloorObject.getBody().getCollisionFlags() | btCollisionObject.CollisionFlags.CF_KINEMATIC_OBJECT);
+        // Register the Floor as a 3D physics instance.
+        this.getInstances().add(lFloorObject);
+        // Register the Floor as a rigid mBody; it's a persistent entity.
+        this.getDynamicsWorld().addRigidBody(lFloorObject.getBody());
+        // Assign the DynamicsWorld the DebugDrawer.
+        this.getDynamicsWorld().setDebugDrawer(this.getDebugDrawer());
+        // Configure the Floor's Callbacks.
+        lFloorObject.getBody().setContactCallbackFlag(PhysicsWorld.GROUND_FLAG);
+        lFloorObject.getBody().setContactCallbackFilter(0);
+        lFloorObject.getBody().setActivationState(Collision.DISABLE_DEACTIVATION);
     }
 
     /** Called when Contact has been detected. */
@@ -161,7 +191,7 @@ public final class PhysicsWorld implements ApplicationListener {
     }
 
     /** Spawns a random shape within the 3D scene. */
-    private final void onSpawn(final Model pModel) {
+    private final PhysicsEntity onSpawn(final Model pModel) {
         // Determine the index of the random item to generate. (Offset by 1 so we don't duplicate the floor.)
         final int lIndex = (1 + MathUtils.random(this.getConstructors().size - 2));
         // Allocate a new PhysicsEntity.
@@ -180,6 +210,8 @@ public final class PhysicsWorld implements ApplicationListener {
         // Configure the Callbacks; we want to detect collisions with the Floor.
         lPhysicsEntity.getBody().setContactCallbackFlag(PhysicsWorld.OBJECT_FLAG);
         lPhysicsEntity.getBody().setContactCallbackFilter(PhysicsWorld.GROUND_FLAG);
+        // Return the PhysicsEntity.
+        return lPhysicsEntity;
     }
 
     /** Creates a PerspectiveCamera for the Scene. */
@@ -211,77 +243,36 @@ public final class PhysicsWorld implements ApplicationListener {
         Gdx.gl.glClearColor(0.3f, 0.3f, 0.3f, 1.f);
         // Clear the screen in preparation for re-rendering.
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
-        // Have we not yet loaded?
-        if(!this.isLoaded() && this.getAssetManager().update()) {
-            // Assert that we've finished loading.
-            this.setLoaded(true);
-            // Fetch the Spinner Model, and remove the transforms that were generated from the Blender model. (This ensures consistency between the physics object and the graphical instances.)
-            final Model lModel = PhysicsEntity.unblend(this.getAssetManager().get(PhysicsWorld.PATH_ASSET_SPINNER, Model.class));
 
-            // Declare the ModelBuilder.
-            final ModelBuilder lModelBuilder = new ModelBuilder();
-            // Assert that we're beginning to build the Model.
-            lModelBuilder.begin();
-            // Initialize Builder Mapping.
-            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_GROUND,   (new PhysicsEntity.Builder.Cube(PhysicsWorld.KEY_OBJECT_GROUND, new Vector3(2.5f, 0.5f, 2.5f), Color.FOREST, 0.0f)).build(lModelBuilder));
-            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SPHERE,   (new PhysicsEntity.Builder.Sphere(PhysicsWorld.KEY_OBJECT_SPHERE, 0.5f, 30, Color.CHARTREUSE, 1.0f).build(lModelBuilder)));
-            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_BOX,      (new PhysicsEntity.Builder.Cube(PhysicsWorld.KEY_OBJECT_BOX, new Vector3(0.5f, 0.5f, 0.5f), Color.CORAL, 1.0f)).build(lModelBuilder));
-            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CONE,     (new PhysicsEntity.Builder.Cone(PhysicsWorld.KEY_OBJECT_CONE, 0.5f, 2.5f, 10, Color.FIREBRICK, 1.0f).build(lModelBuilder)));
-            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CAPSULE,  (new PhysicsEntity.Builder.Capsule(PhysicsWorld.KEY_OBJECT_CAPSULE, 0.5f, 1.0f, 10, Color.GOLDENROD, 1.0f)).build(lModelBuilder));
-            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CYLINDER, (new PhysicsEntity.Builder.Cylinder(PhysicsWorld.KEY_OBJECT_CYLINDER, new Vector3(0.5f, 1.0f, 0.5f), 10, Color.SALMON, 1.0f)).build(lModelBuilder));
-            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SHIP,     (new PhysicsEntity.Builder.Generic(PhysicsWorld.KEY_OBJECT_SHIP, this.getAssetManager().get(PhysicsWorld.PATH_ASSET_SHIP, Model.class), true, 1.0f).build(lModelBuilder)));
-            this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SPINNER,  (new PhysicsEntity.Builder.Generic(PhysicsWorld.KEY_OBJECT_SPINNER, lModel, true, 1.0f).build(lModelBuilder)));
-            // Build the Model. (This is a complete physical representation of the objects in our scene.)
-            this.setModel(lModelBuilder.end());
-            // Allocate the Floor.
-            final PhysicsEntity lFloorObject = this.getConstructors().get(PhysicsWorld.KEY_OBJECT_GROUND).build(this.getModel());
-            // Define the Collision Flags.
-            lFloorObject.getBody().setCollisionFlags(lFloorObject.getBody().getCollisionFlags() | btCollisionObject.CollisionFlags.CF_KINEMATIC_OBJECT);
-            // Register the Floor as a 3D physics instance.
-            this.getInstances().add(lFloorObject);
-            // Register the Floor as a rigid mBody; it's a persistent entity.
-            this.getDynamicsWorld().addRigidBody(lFloorObject.getBody());
-            // Assign the DynamicsWorld the DebugDrawer.
-            this.getDynamicsWorld().setDebugDrawer(this.getDebugDrawer());
-            // Configure the Floor's Callbacks.
-            lFloorObject.getBody().setContactCallbackFlag(PhysicsWorld.GROUND_FLAG);
-            lFloorObject.getBody().setContactCallbackFilter(0);
-            lFloorObject.getBody().setActivationState(Collision.DISABLE_DEACTIVATION);
+        /** @Cawfree: Spawn timing operation. */
+        if ((mSpawnTimer -= lStep) < 0) {
+            this.onSpawn(this.getModel());
+            mSpawnTimer = PhysicsWorld.DELAY_RESPAWN_MS;
         }
 
-        // Have we finished loading?
-        if(this.isLoaded()) {
+        // Begin Rendering the Model Batch. (Batch drawing greatly increases the speed of rendering.)
+        this.getModelBatch().begin(this.getPerspectiveCamera());
+        // Render the Instances.
+        this.getModelBatch().render(this.getInstances(), this.getEnvironment());
+        // Assert that we've finished rendering using the ModelBatch.
+        this.getModelBatch().end();
 
-            //
-            if ((mSpawnTimer -= lStep) < 0) {
-                this.onSpawn(this.getModel());
-                mSpawnTimer = PhysicsWorld.DELAY_RESPAWN_MS;
-            }
-
-            // Begin Rendering the Model Batch. (Batch drawing greatly increases the speed of rendering.)
-            this.getModelBatch().begin(this.getPerspectiveCamera());
-            // Render the Instances.
-            this.getModelBatch().render(this.getInstances(), this.getEnvironment());
-            // Assert that we've finished rendering using the ModelBatch.
-            this.getModelBatch().end();
-
-            // Perform Debug Rendering?
-            if(PhysicsWorld.RENDER_DEBUG) {
-                // Prepare Debug Drawing.
-                this.getDebugDrawer().begin(this.getPerspectiveCamera());
-                // Render the Debugging Information.
-                this.getDynamicsWorld().debugDrawWorld();
-                // Finish Debug Drawing.
-                this.getDebugDrawer().end();
-            }
-
-            // Begin rendering Sprites.
-            this.getSpriteBatch().begin();
-            // Draw the Texture.
-            this.getSpriteBatch().draw(this.getTexture(), 0, 0);
-            // Finish ending Sprites.
-            this.getSpriteBatch().end();
+        // Perform Debug Rendering?
+        if(PhysicsWorld.RENDER_DEBUG) {
+            // Prepare Debug Drawing.
+            this.getDebugDrawer().begin(this.getPerspectiveCamera());
+            // Render the Debugging Information.
+            this.getDynamicsWorld().debugDrawWorld();
+            // Finish Debug Drawing.
+            this.getDebugDrawer().end();
         }
+
+        // Begin rendering Sprites.
+        this.getSpriteBatch().begin();
+        // Draw the Texture.
+        this.getSpriteBatch().draw(this.getTexture(), 0, 0);
+        // Finish ending Sprites.
+        this.getSpriteBatch().end();
     }
 
     /** Handle when the screen is resized. (Useful for changes in screen orientation on Android.) */
@@ -407,14 +398,6 @@ public final class PhysicsWorld implements ApplicationListener {
 
     private final SpriteBatch getSpriteBatch() {
         return this.mSpriteBatch;
-    }
-
-    private final void setLoaded(final boolean pIsLoaded) {
-        this.mLoaded = pIsLoaded;
-    }
-
-    private final boolean isLoaded() {
-        return this.mLoaded;
     }
 
     private final DebugDrawer getDebugDrawer() {
