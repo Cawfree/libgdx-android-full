@@ -10,8 +10,11 @@ import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.model.Node;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
+import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.math.collision.BoundingBox;
+import com.badlogic.gdx.math.collision.Ray;
 import com.badlogic.gdx.physics.bullet.collision.btBoxShape;
 import com.badlogic.gdx.physics.bullet.collision.btCapsuleShape;
 import com.badlogic.gdx.physics.bullet.collision.btCollisionShape;
@@ -26,6 +29,23 @@ import com.badlogic.gdx.utils.Disposable;
 
 /** Tracks the physical implementation of an Entity. */
 public class PhysicsEntity extends ModelInstance implements Disposable {
+
+    /* Static Declarations. */
+    private static final IIntersector INTERSECTOR_SPHERE = new IIntersector() { @Override public final boolean isIntersectingWith(final Ray pRay, final Vector3 pCenter, final BoundingBox pBoundingBox) {
+        // Apply the sphere intersector.
+        return Intersector.intersectRaySphere(pRay, pCenter, ((pBoundingBox.getDimensions(new Vector3())).len() / 2f), null);
+    } };
+
+    private static final IIntersector INTERSECTOR_BBOX = new IIntersector() { @Override public final boolean isIntersectingWith(final Ray pRay, final Vector3 pCenter, final BoundingBox pBoundingBox) {
+        // Apply the bounding box intersector.
+        return Intersector.intersectRayBoundsFast(pRay, pBoundingBox);
+    } };
+
+    /** Defines an intersection method. */
+    protected interface IIntersector { /** TODO: PhysicsEntity should implement this interface. */
+        /** Defines the intersection process. */
+        boolean isIntersectingWith(final Ray pRay, final Vector3 pCenter, final BoundingBox pBoundingBox);
+    }
 
     /** Removes the applied global transforms to a Model produced by Blender. (This may not be valid for all files.) */
     public static final Model unblend(final Model pModel) {
@@ -74,7 +94,7 @@ public class PhysicsEntity extends ModelInstance implements Disposable {
             /** Constructor. */
             public Generic(final String pNode, final Model pModel, final boolean pIsOptimized, final float pMass) {
                 // Initialize the Parent.
-                super(pNode, PhysicsEntity.createConvexHullShape(pModel, pIsOptimized), pMass); /** TODO: Update Scale/Offset. */
+                super(pNode, PhysicsEntity.createConvexHullShape(pModel, pIsOptimized), pMass, PhysicsEntity.INTERSECTOR_SPHERE); /** TODO: Update Scale/Offset. */
                 // Initialize Member Variables.
                 this.mModel  = pModel;
             }
@@ -92,7 +112,7 @@ public class PhysicsEntity extends ModelInstance implements Disposable {
         }
 
         /** Cylinder Builder. */
-        public static final class Cylinder extends Builder<btCylinderShape> {
+        public static class Cylinder extends Builder<btCylinderShape> {
             /* Member Variables. */
             private final Vector3 mVector3;
             private final Color   mColor;
@@ -100,7 +120,7 @@ public class PhysicsEntity extends ModelInstance implements Disposable {
             /** Constructor. */
             public Cylinder(final String pNode, final Vector3 pVector3, final int pDivisions, final Color pColor, final float pMass) {
                 // Initialize the Parent.
-                super(pNode, new btCylinderShape(pVector3), pMass);
+                super(pNode, new btCylinderShape(pVector3), pMass, PhysicsEntity.INTERSECTOR_SPHERE);
                 // Initialize Member Variables.
                 this.mVector3   = pVector3;
                 this.mColor     = pColor;
@@ -122,7 +142,7 @@ public class PhysicsEntity extends ModelInstance implements Disposable {
         }
 
         /** Capsule Builder. */
-        public static final class Capsule extends Builder<btCapsuleShape> {
+        public static class Capsule extends Builder<btCapsuleShape> {
             /* Member Variables. */
             private final float mRadius;
             private final float mHeight;
@@ -131,7 +151,7 @@ public class PhysicsEntity extends ModelInstance implements Disposable {
             /** Constructor. */
             public Capsule(final String pNode, final float pRadius, final float pHeight, final int pDivisions, final Color pColor, final float pMass) {
                 // Implement the Parent.
-                super(pNode, new btCapsuleShape(pRadius, pHeight), pMass);
+                super(pNode, new btCapsuleShape(pRadius, pHeight), pMass, PhysicsEntity.INTERSECTOR_SPHERE);
                 // Initialize Member Variables.
                 this.mRadius    = pRadius;
                 this.mHeight    = pHeight;
@@ -155,7 +175,7 @@ public class PhysicsEntity extends ModelInstance implements Disposable {
         }
 
         /** Cone Builder. */
-        public static final class Cone extends Builder<btConeShape> {
+        public static class Cone extends Builder<btConeShape> {
             /* Member Variables. */
             private final float mRadius;
             private final float mHeight;
@@ -164,7 +184,7 @@ public class PhysicsEntity extends ModelInstance implements Disposable {
             /** Constructor. */
             public Cone(final String pNode, final float pRadius, final float pHeight, final int pDivisions, final Color pColor, final float pMass) {
                 // Implement the Parent.
-                super(pNode, new btConeShape(pRadius, pHeight), pMass);
+                super(pNode, new btConeShape(pRadius, pHeight), pMass, PhysicsEntity.INTERSECTOR_SPHERE);
                 // Initialize Member Variables.
                 this.mRadius    = pRadius;
                 this.mHeight    = pHeight;
@@ -188,7 +208,7 @@ public class PhysicsEntity extends ModelInstance implements Disposable {
         }
 
         /** Sphere Builder. */
-        public static final class Sphere extends Builder<btSphereShape> {
+        public static class Sphere extends Builder<btSphereShape> {
             /* Member Variables. */
             private final float mRadius;
             private final Color mColor;
@@ -196,7 +216,7 @@ public class PhysicsEntity extends ModelInstance implements Disposable {
             /** Constructor. */
             public Sphere(final String pNode, final float pRadius, final int pDivisions, final Color pColor, final float pMass) {
                 // Buffer the Characteristics.
-                super(pNode, new btSphereShape(pRadius), pMass);
+                super(pNode, new btSphereShape(pRadius), pMass, PhysicsEntity.INTERSECTOR_SPHERE);
                 // Initialize Member Variables.
                 this.mRadius    = pRadius;
                 this.mDivisions = pDivisions;
@@ -218,14 +238,14 @@ public class PhysicsEntity extends ModelInstance implements Disposable {
         }
 
         /** Cube Builder. */
-        public static final class Cube extends Builder<btBoxShape> {
+        public static class Cube extends Builder<btBoxShape> {
             /* Member Variables. */
             private final Vector3 mDim;
             private final Color   mColor;
             /**  Constructor. */
             public Cube(final String pNode, final Vector3 pDim, final Color pColor, final float pMass) {
                 // Buffer the characteristics.
-                super(pNode, new btBoxShape(pDim), pMass);
+                super(pNode, new btBoxShape(pDim), pMass, PhysicsEntity.INTERSECTOR_BBOX);
                 // Initialize Member Variables.
                 this.mDim   = pDim;
                 this.mColor = pColor;
@@ -248,12 +268,14 @@ public class PhysicsEntity extends ModelInstance implements Disposable {
         private final String                                  mNode;
         private final T                                       mCollisionShape;
         private final btRigidBody.btRigidBodyConstructionInfo mConstructionInfo;
+        private final IIntersector                            mIntersector;
 
         /**  Constructor. */
-        public Builder(final String pNode, final T pCollisionShape, final float pMass) {
+        public Builder(final String pNode, final T pCollisionShape, final float pMass, final IIntersector pIntersector) {
             // Initialize Member Variables.
             this.mNode           = pNode;
             this.mCollisionShape = pCollisionShape;
+            this.mIntersector    = pIntersector;
             // Declare the LocalInertia.
             final Vector3 lLocalInertia = new Vector3(0.0f, 0.0f, 0.0f);
             // Is there a valid mass?
@@ -283,7 +305,7 @@ public class PhysicsEntity extends ModelInstance implements Disposable {
         /** Creates a PhysicsEntity based on the configuration of the Constructor. */
         public final PhysicsEntity build(final Model pModel) {
             // Allocate a PhysicsEntity.
-            return new PhysicsEntity(pModel, this.getNode(), this.getConstructionInfo());
+            return new PhysicsEntity(pModel, this.getNode(), this.getConstructionInfo(), this.getIntersector());
         }
 
         /* Getters. */
@@ -299,16 +321,22 @@ public class PhysicsEntity extends ModelInstance implements Disposable {
             return this.mConstructionInfo;
         }
 
+        private final IIntersector getIntersector() {
+            return this.mIntersector;
+        }
+
     }
 
     /* Member Variables. */
     private final btRigidBody   mBody;
     private final btMotionState mMotionState;
+    private final IIntersector  mIntersector;
 
     /** Builder. */
-    public PhysicsEntity(final Model pModel, final String pNode, final btRigidBody.btRigidBodyConstructionInfo pConstructionInfo) {
+    public PhysicsEntity(final Model pModel, final String pNode, final btRigidBody.btRigidBodyConstructionInfo pConstructionInfo, final IIntersector pIntersector) {
+        // Implement the Parent.
         super(pModel, pNode);
-        // Allocate Member Variables.
+        // Initialize Member Variables.
         this.mMotionState = new btMotionState() {
             /** Returns the World Transform for this Entity. */
             @Override public final void getWorldTransform(final Matrix4 worldTrans) { worldTrans.set(PhysicsEntity.this.transform); }
@@ -316,9 +344,16 @@ public class PhysicsEntity extends ModelInstance implements Disposable {
             @Override public final void setWorldTransform(final Matrix4 worldTrans) { PhysicsEntity.this.transform.set(worldTrans); }
         };
         // Allocate the Body.
-        this.mBody = new btRigidBody(pConstructionInfo);
+        this.mBody        = new btRigidBody(pConstructionInfo);
+        this.mIntersector = pIntersector;
         // Define the MotionState.
         this.getBody().setMotionState(this.getMotionState());
+    }
+
+    /** A custom intersection for the PhysicsEntity. */
+    public boolean isIntersectingWith(final Ray pRay, final Vector3 pCenter, final BoundingBox pBoundingBox) {
+        // Use the Intersector to deduce the intersection with the Ray.
+        return this.getIntersector().isIntersectingWith(pRay, pCenter, pBoundingBox);
     }
 
     /** Define the disposal operations. */
@@ -335,6 +370,10 @@ public class PhysicsEntity extends ModelInstance implements Disposable {
 
     private final btMotionState getMotionState() {
         return this.mMotionState;
+    }
+
+    private final IIntersector getIntersector() {
+        return this.mIntersector;
     }
 
 }

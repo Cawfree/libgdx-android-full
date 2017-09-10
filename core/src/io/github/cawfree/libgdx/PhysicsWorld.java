@@ -2,7 +2,10 @@ package io.github.cawfree.libgdx;
 
 import com.badlogic.gdx.ApplicationListener;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.InputMultiplexer;
+import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.assets.AssetManager;
+import com.badlogic.gdx.graphics.Camera;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Mesh;
@@ -17,8 +20,11 @@ import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight;
 import com.badlogic.gdx.graphics.g3d.model.Node;
 import com.badlogic.gdx.graphics.g3d.utils.CameraInputController;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
+import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.math.collision.BoundingBox;
+import com.badlogic.gdx.math.collision.Ray;
 import com.badlogic.gdx.physics.bullet.Bullet;
 import com.badlogic.gdx.physics.bullet.DebugDrawer;
 import com.badlogic.gdx.physics.bullet.collision.Collision;
@@ -45,7 +51,7 @@ import io.github.cawfree.libgdx.entity.PhysicsEntity;
  * @author Xoppa
  **/
 
-public final class PhysicsWorld implements ApplicationListener {
+public final class PhysicsWorld implements ApplicationListener, InputProcessor {
 
     /* Configurations. */
     private static final boolean RENDER_DEBUG = false;
@@ -54,7 +60,7 @@ public final class PhysicsWorld implements ApplicationListener {
     private static final short GROUND_FLAG        = (1 << 8);
     private static final short OBJECT_FLAG        = (1 << 9);
     private static final float FRAMES_PER_SECOND  = 60.0f;
-    private static final float DELAY_RESPAWN_MS   = 1.5f;
+    private static final float DELAY_RESPAWN_MS   = 10000000000.5f;
 
     /* Object Definitions. */
     public  static final String KEY_OBJECT_GROUND   = "ground";
@@ -149,7 +155,7 @@ public final class PhysicsWorld implements ApplicationListener {
         lModelBuilder.begin();
         // Initialize Builder Mapping.
         this.getConstructors().put(PhysicsWorld.KEY_OBJECT_GROUND,   (new PhysicsEntity.Builder.Cube(PhysicsWorld.KEY_OBJECT_GROUND, new Vector3(2.5f, 0.5f, 2.5f), Color.FOREST, 0.0f)).build(lModelBuilder));
-        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SPHERE,   (new PhysicsEntity.Builder.Sphere(PhysicsWorld.KEY_OBJECT_SPHERE, 0.5f, 30, Color.CHARTREUSE, 1.0f).build(lModelBuilder)));
+        this.getConstructors().put(PhysicsWorld.KEY_OBJECT_SPHERE,   (new PhysicsEntity.Builder.Sphere(PhysicsWorld.KEY_OBJECT_SPHERE, 1f, 30, Color.CHARTREUSE, 1.0f).build(lModelBuilder)));
         this.getConstructors().put(PhysicsWorld.KEY_OBJECT_BOX,      (new PhysicsEntity.Builder.Cube(PhysicsWorld.KEY_OBJECT_BOX, new Vector3(0.5f, 0.5f, 0.5f), Color.CORAL, 1.0f)).build(lModelBuilder));
         this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CONE,     (new PhysicsEntity.Builder.Cone(PhysicsWorld.KEY_OBJECT_CONE, 0.5f, 2.5f, 10, Color.FIREBRICK, 1.0f).build(lModelBuilder)));
         this.getConstructors().put(PhysicsWorld.KEY_OBJECT_CAPSULE,  (new PhysicsEntity.Builder.Capsule(PhysicsWorld.KEY_OBJECT_CAPSULE, 0.5f, 1.0f, 10, Color.GOLDENROD, 1.0f)).build(lModelBuilder));
@@ -275,14 +281,62 @@ public final class PhysicsWorld implements ApplicationListener {
         this.getSpriteBatch().end();
     }
 
+    /** Handle when the screen is pressed down on. */
+    @Override public final boolean touchDown(final int pScreenX, final int pScreenY, final int pPointer, final int pButton) {
+        // Fetch the collided PhysicsEntity.
+        final PhysicsEntity lPhysicsEntity = cast(this.getPerspectiveCamera().getPickRay(pScreenX, pScreenY));
+        System.out.println("x is " + lPhysicsEntity);
+        // Consume the Event.
+        return true;
+    }
+
+    /** Performs a raycast operation on the scene. */
+    public final PhysicsEntity cast(final Ray pRay) {
+        // Define the Distance.
+              float         lDistance      = -1;
+        // Define the BoundingBox.
+        final BoundingBox   lBoundingBox   = new BoundingBox();
+        // Define the Vector we use for computing the RayCast within a PhysicsEntity's domain.
+        final Vector3       lCenter        = new Vector3();
+        // Declare the return reference.
+              PhysicsEntity lPhysicsEntity = null;
+        // Iterate the PhysicsEntities.
+        for(int i = 0; i < this.getInstances().size; i++) {
+            // Fetch the next PhysicsEntity we'll be computing intersection for.
+            final PhysicsEntity lIntersection = this.getInstances().get(i);
+            // Fetch the PhysicsEntity's Translation.
+            lIntersection.transform.getTranslation(lCenter);
+            // Calculate the Bounding Box.
+            lIntersection.calculateBoundingBox(lBoundingBox);
+            // Apply the BoundingBox's offset to the Centre.
+            lCenter.add(lBoundingBox.getCenter(new Vector3()));
+            // Compute the distance between the Ray and the point of intersection.
+            float lDistance2 = pRay.origin.dst2(lCenter);
+            // Does the Raycast intersect with the PhysicsEntity?
+            if(lDistance >= 0f && lDistance2 > lDistance) {
+                // Ignore the rest of this iteration.
+                continue;
+            }
+            // Does the instance intersect?
+            if(lIntersection.isIntersectingWith(pRay, lCenter, lBoundingBox)) {
+                // Track the Intersection.
+                lPhysicsEntity = lIntersection;
+                // Overwrite the Distance.
+                lDistance = lDistance2;
+            }
+        }
+        // Return the PhysicsEntity.
+        return lPhysicsEntity;
+    }
+
     /** Handle when the screen is resized. (Useful for changes in screen orientation on Android.) */
     @Override public final void resize(final int pWidth, final int pHeight) {
         // Reassign the PerspectiveCamera.
         this.setPerpectiveCamera(PhysicsWorld.getPerspectiveCamera(pWidth, pHeight));
         // Update the CameraController.
         this.setCameraController(new CameraInputController(this.getPerspectiveCamera()));
-        // Register the Input Processor.
-        Gdx.input.setInputProcessor(this.getCameraController());
+        // Configure Input Multiplexing.
+        Gdx.input.setInputProcessor(new InputMultiplexer(this, this.getCameraController()));
     }
 
     /** Handles destruction of the 3D scene. */
@@ -317,8 +371,15 @@ public final class PhysicsWorld implements ApplicationListener {
     }
 
     /* Unused Overrides. */
-    @Override public final void  pause() { /* Do nothing. */ }
-    @Override public final void resume() { /* Do nothing. */ }
+    @Override public final boolean      keyDown(final int pKeyCode) { return false; }
+    @Override public final boolean        keyUp(final int pKeyCode) { return false; }
+    @Override public final boolean     keyTyped(final char pCharacter) { return false; }
+    @Override public final boolean      touchUp(final int pScreenX, final int pScreenY, final int pPointer, final int pButton) { return false; }
+    @Override public final boolean touchDragged(final int pScreenX, final int pScreenY, final int pPointer) { return false; }
+    @Override public final boolean   mouseMoved(final int pScreenX, final int pScreenY) { return false; }
+    @Override public final boolean     scrolled(final int pAmount) { return false; }
+    @Override public final void           pause() { }
+    @Override public final void          resume() { }
 
     /** Computes the elapsed time in the scene; render either the animation step or the time that has elapsed to ensure smooth display. */
     private final float getSimulationStep() {
