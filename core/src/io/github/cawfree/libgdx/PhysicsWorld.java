@@ -27,6 +27,7 @@ import com.badlogic.gdx.math.collision.BoundingBox;
 import com.badlogic.gdx.math.collision.Ray;
 import com.badlogic.gdx.physics.bullet.Bullet;
 import com.badlogic.gdx.physics.bullet.DebugDrawer;
+import com.badlogic.gdx.physics.bullet.collision.ClosestRayResultCallback;
 import com.badlogic.gdx.physics.bullet.collision.Collision;
 import com.badlogic.gdx.physics.bullet.collision.ContactListener;
 import com.badlogic.gdx.physics.bullet.collision.btBroadphaseInterface;
@@ -39,6 +40,7 @@ import com.badlogic.gdx.physics.bullet.collision.btDispatcher;
 import com.badlogic.gdx.physics.bullet.dynamics.btConstraintSolver;
 import com.badlogic.gdx.physics.bullet.dynamics.btDiscreteDynamicsWorld;
 import com.badlogic.gdx.physics.bullet.dynamics.btDynamicsWorld;
+import com.badlogic.gdx.physics.bullet.dynamics.btRigidBody;
 import com.badlogic.gdx.physics.bullet.dynamics.btSequentialImpulseConstraintSolver;
 import com.badlogic.gdx.physics.bullet.linearmath.btIDebugDraw;
 import com.badlogic.gdx.utils.Array;
@@ -60,7 +62,7 @@ public final class PhysicsWorld implements ApplicationListener, InputProcessor {
     private static final short GROUND_FLAG        = (1 << 8);
     private static final short OBJECT_FLAG        = (1 << 9);
     private static final float FRAMES_PER_SECOND  = 60.0f;
-    private static final float DELAY_RESPAWN_MS   = 10000000000.5f;
+    private static final float DELAY_RESPAWN_MS   = 1.5f;
 
     /* Object Definitions. */
     public  static final String KEY_OBJECT_GROUND   = "ground";
@@ -96,6 +98,7 @@ public final class PhysicsWorld implements ApplicationListener, InputProcessor {
     private btBroadphaseInterface    mBroadphaseInterface;
     private btDynamicsWorld          mDynamicsWorld;
     private btConstraintSolver       mConstraintsSolver;
+    private ClosestRayResultCallback mClosestRayResultCallback;
 
     private Texture                  mTexture;
 
@@ -134,6 +137,8 @@ public final class PhysicsWorld implements ApplicationListener, InputProcessor {
         this.mConstraintsSolver = new btSequentialImpulseConstraintSolver();
         // Declare the DynamicsWorld based upon the declared components.
         this.mDynamicsWorld = new btDiscreteDynamicsWorld(this.getDispatcher(), this.getBroadphaseInterface(), this.getConstraintSolver(), this.getCollisionConfig());
+        // Allocate the ClosestRayResultCallback.
+        this.mClosestRayResultCallback = new ClosestRayResultCallback(Vector3.Zero, Vector3.Z);
         // Configure the direction of Gravity in this world.
         this.getDynamicsWorld().setGravity(new Vector3(0, -9.81f, 0));
 //        this.getDynamicsWorld().setGravity(new Vector3(0, 0.0f, 0));
@@ -281,53 +286,75 @@ public final class PhysicsWorld implements ApplicationListener, InputProcessor {
         this.getSpriteBatch().end();
     }
 
+    private static final float RAY_DISTANCE_MAX = 50.0f;
+
     /** Handle when the screen is pressed down on. */
     @Override public final boolean touchDown(final int pScreenX, final int pScreenY, final int pPointer, final int pButton) {
-        // Fetch the collided PhysicsEntity.
-        final PhysicsEntity lPhysicsEntity = cast(this.getPerspectiveCamera().getPickRay(pScreenX, pScreenY));
-        System.out.println("x is " + lPhysicsEntity);
+        // Allocate the Ray.
+        final Ray lRay = this.getPerspectiveCamera().getPickRay(pScreenX, pScreenY);
+        // Define calculation dependencies.
+        final Vector3 lFromRay = new Vector3();
+        final Vector3 lToRay   = new Vector3();
+        // Define the Origin of the FromRay.
+        lFromRay.set(lRay.origin);
+        // Define the Destination of the ToRay.
+        lToRay.set(lRay.direction).scl(PhysicsWorld.RAY_DISTANCE_MAX).add(lFromRay);
+        // Re-initiailize the ClosestRayResultCallback, since it is re-used.
+        this.getClosestRayResultCallback().setCollisionObject(null);
+        this.getClosestRayResultCallback().setClosestHitFraction(1f);
+        // Update the Ray Params.
+        this.getClosestRayResultCallback().setRayFromWorld(lFromRay);
+        this.getClosestRayResultCallback().setRayToWorld(lToRay);
+        // Perform the RayTest.
+        this.getDynamicsWorld().rayTest(lFromRay, lToRay, this.getClosestRayResultCallback());
+        // Has the Ray hit an Object?
+        if(this.getClosestRayResultCallback().hasHit()) {
+            // Fetch the CollisionObject.
+            final btCollisionObject lCollisionObject = this.getClosestRayResultCallback().getCollisionObject();
+            System.out.println("Found collision.");
+        }
         // Consume the Event.
         return true;
     }
 
-    /** Performs a raycast operation on the scene. */
-    public final PhysicsEntity cast(final Ray pRay) {
-        // Define the Distance.
-              float         lDistance      = -1;
-        // Define the BoundingBox.
-        final BoundingBox   lBoundingBox   = new BoundingBox();
-        // Define the Vector we use for computing the RayCast within a PhysicsEntity's domain.
-        final Vector3       lCenter        = new Vector3();
-        // Declare the return reference.
-              PhysicsEntity lPhysicsEntity = null;
-        // Iterate the PhysicsEntities.
-        for(int i = 0; i < this.getInstances().size; i++) {
-            // Fetch the next PhysicsEntity we'll be computing intersection for.
-            final PhysicsEntity lIntersection = this.getInstances().get(i);
-            // Fetch the PhysicsEntity's Translation.
-            lIntersection.transform.getTranslation(lCenter);
-            // Calculate the Bounding Box.
-            lIntersection.calculateBoundingBox(lBoundingBox);
-            // Apply the BoundingBox's offset to the Centre.
-            lCenter.add(lBoundingBox.getCenter(new Vector3()));
-            // Compute the distance between the Ray and the point of intersection.
-            float lDistance2 = pRay.origin.dst2(lCenter);
-            // Does the Raycast intersect with the PhysicsEntity?
-            if(lDistance >= 0f && lDistance2 > lDistance) {
-                // Ignore the rest of this iteration.
-                continue;
-            }
-            // Does the instance intersect?
-            if(lIntersection.isIntersectingWith(pRay, lCenter, lBoundingBox)) {
-                // Track the Intersection.
-                lPhysicsEntity = lIntersection;
-                // Overwrite the Distance.
-                lDistance = lDistance2;
-            }
-        }
-        // Return the PhysicsEntity.
-        return lPhysicsEntity;
-    }
+//    /** Performs a raycast operation on the scene. */
+//    public final PhysicsEntity cast(final Ray pRay) {
+//        // Define the Distance.
+//              float         lDistance      = -1;
+//        // Define the BoundingBox.
+//        final BoundingBox   lBoundingBox   = new BoundingBox();
+//        // Define the Vector we use for computing the RayCast within a PhysicsEntity's domain.
+//        final Vector3       lCenter        = new Vector3();
+//        // Declare the return reference.
+//              PhysicsEntity lPhysicsEntity = null;
+//        // Iterate the PhysicsEntities.
+//        for(int i = 0; i < this.getInstances().size; i++) {
+//            // Fetch the next PhysicsEntity we'll be computing intersection for.
+//            final PhysicsEntity lIntersection = this.getInstances().get(i);
+//            // Fetch the PhysicsEntity's Translation.
+//            lIntersection.transform.getTranslation(lCenter);
+//            // Calculate the Bounding Box.
+//            lIntersection.calculateBoundingBox(lBoundingBox);
+//            // Apply the BoundingBox's offset to the Centre.
+//            lCenter.add(lBoundingBox.getCenter(new Vector3()));
+//            // Compute the distance between the Ray and the point of intersection.
+//            float lDistance2 = pRay.origin.dst2(lCenter);
+//            // Does the Raycast intersect with the PhysicsEntity?
+//            if(lDistance >= 0f && lDistance2 > lDistance) {
+//                // Ignore the rest of this iteration.
+//                continue;
+//            }
+//            // Does the instance intersect?
+//            if(lIntersection.isIntersectingWith(pRay, lCenter, lBoundingBox)) {
+//                // Track the Intersection.
+//                lPhysicsEntity = lIntersection;
+//                // Overwrite the Distance.
+//                lDistance = lDistance2;
+//            }
+//        }
+//        // Return the PhysicsEntity.
+//        return lPhysicsEntity;
+//    }
 
     /** Handle when the screen is resized. (Useful for changes in screen orientation on Android.) */
     @Override public final void resize(final int pWidth, final int pHeight) {
@@ -368,6 +395,7 @@ public final class PhysicsWorld implements ApplicationListener, InputProcessor {
         this.getTexture().dispose();
         this.getSpriteBatch().dispose();
         this.getAssetManager().dispose();
+        this.getClosestRayResultCallback().dispose();
     }
 
     /* Unused Overrides. */
@@ -462,6 +490,10 @@ public final class PhysicsWorld implements ApplicationListener, InputProcessor {
 
     private final DebugDrawer getDebugDrawer() {
         return this.mDebugDrawer;
+    }
+
+    private final ClosestRayResultCallback getClosestRayResultCallback() {
+        return this.mClosestRayResultCallback;
     }
 
 }
